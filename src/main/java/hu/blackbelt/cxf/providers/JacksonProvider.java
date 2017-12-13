@@ -1,11 +1,14 @@
 package hu.blackbelt.cxf.providers;
 
-import hu.blackbelt.cxf.extension.Configurable;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.ConfigurationPolicy;
+import org.osgi.service.component.annotations.Modified;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
@@ -17,9 +20,14 @@ import java.util.Map;
 @Consumes(MediaType.WILDCARD)
 @Produces(MediaType.WILDCARD)
 @Slf4j
-public class JacksonProvider extends JacksonJaxbJsonProvider implements Configurable {
+@Component(immediate = true, configurationPolicy = ConfigurationPolicy.REQUIRE)
+public class JacksonProvider extends JacksonJaxbJsonProvider {
 
-    public JacksonProvider(final ObjectMapper objectMapper) {
+    public JacksonProvider() {
+        this(null);
+    }
+
+    public JacksonProvider(ObjectMapper objectMapper) {
         super(objectMapper, JacksonProvider.DEFAULT_ANNOTATIONS);
 
         configure(SerializationFeature.INDENT_OUTPUT, false);
@@ -27,8 +35,9 @@ public class JacksonProvider extends JacksonJaxbJsonProvider implements Configur
         configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    @Override
-    public void configure(final Map<String, Object> config) {
+    @Activate
+    @Modified
+    void start(final Map<String, Object> config) {
         config.forEach((k, v) -> {
             if (k.startsWith("JacksonProvider.SerializationFeature.")) {
                 try {

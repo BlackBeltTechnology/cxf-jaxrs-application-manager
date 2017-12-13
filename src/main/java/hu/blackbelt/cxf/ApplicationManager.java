@@ -16,8 +16,9 @@ import java.util.Map;
 @Slf4j
 public class ApplicationManager {
 
+    private static final String PROVIDERS_KEY = "providers";
+
     private Map<Application, Server> runningServers = new HashMap<>();
-    private Map<Application, CxfProviderProvider> providerProviders = new HashMap<>();
 
     void registerApplication(final Application application, final Map<String, Object> config) {
         if (log.isDebugEnabled()) {
@@ -27,15 +28,17 @@ public class ApplicationManager {
         final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
         final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
-        final CxfProviderProvider cxfProviderProvider = new CxfProviderProvider();
-        cxfProviderProvider.configure(config);
+        final String providerList = (String) config.get(PROVIDERS_KEY);
+        if (providerList != null) {
+            for (final String providerName : providerList.split("\\s*,\\s*")) {
+                log.warn("TODO: create provider component: " + providerName);
+            }
+        }
 
-        serverFactory.setProviders(cxfProviderProvider.getProviders());
         final Server server = serverFactory.create();
         server.start();
 
         runningServers.put(application, server);
-        providerProviders.put(application, cxfProviderProvider);
     }
 
     void unregisterApplication(final Application application, final Map<String, Object> config) {
@@ -49,17 +52,11 @@ public class ApplicationManager {
         }
 
         runningServers.remove(application);
-        providerProviders.remove(application);
     }
 
     void updateApplication(final Application application, final Map<String, Object> config) {
         if (log.isDebugEnabled()) {
-            log.debug("Update JAX-RS application registration: " + application);
-        }
-
-        final CxfProviderProvider cxfProviderProvider = providerProviders.get(application);
-        if (cxfProviderProvider != null) {
-            cxfProviderProvider.configure(config);
+            log.debug("Updated JAX-RS application registration: " + application);
         }
     }
 }

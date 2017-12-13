@@ -1,5 +1,6 @@
-package com.avon.choice.cxf.providers;
+package hu.blackbelt.cxf.providers;
 
+import hu.blackbelt.cxf.extension.Configurable;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -16,15 +17,17 @@ import java.util.Map;
 @Consumes(MediaType.WILDCARD)
 @Produces(MediaType.WILDCARD)
 @Slf4j
-public class JacksonProvider extends JacksonJaxbJsonProvider {
+public class JacksonProvider extends JacksonJaxbJsonProvider implements Configurable {
 
     public JacksonProvider(final ObjectMapper objectMapper) {
         super(objectMapper, JacksonProvider.DEFAULT_ANNOTATIONS);
 
         configure(SerializationFeature.INDENT_OUTPUT, false);
         configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false); // write timestamps as text instead of epoch to output
+        configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
+    @Override
     public void configure(final Map<String, Object> config) {
         config.forEach((k, v) -> {
             if (k.startsWith("JacksonProvider.SerializationFeature.")) {

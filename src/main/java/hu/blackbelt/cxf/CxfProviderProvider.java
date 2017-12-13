@@ -1,7 +1,8 @@
-package com.avon.choice.cxf;
+package hu.blackbelt.cxf;
 
-import com.avon.choice.cxf.providers.ISO8601DateParamHandler;
-import com.avon.choice.cxf.providers.JacksonProvider;
+import hu.blackbelt.cxf.extension.Configurable;
+import hu.blackbelt.cxf.providers.ISO8601DateParamHandler;
+import hu.blackbelt.cxf.providers.JacksonProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +15,7 @@ import java.util.Map;
  * Provider of CXF providers used by MyAvon applications (i.e. Jackson, Date query parameter).
  */
 @Slf4j
-public class CxfProviderProvider {
+public class CxfProviderProvider implements Configurable {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -30,8 +31,12 @@ public class CxfProviderProvider {
         return Arrays.asList(jacksonProvider, iso8601DateParamHandler);
     }
 
+    @Override
     public void configure(final Map<String, Object> config) {
-        jacksonProvider.configure(config);
-        iso8601DateParamHandler.configure(config);
+        getProviders().forEach(p -> {
+            if (p instanceof Configurable) {
+                ((Configurable) p).configure(config);
+            }
+        });
     }
 }

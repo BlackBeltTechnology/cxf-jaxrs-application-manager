@@ -1,5 +1,6 @@
-package com.avon.choice.cxf.providers;
+package hu.blackbelt.cxf.providers;
 
+import hu.blackbelt.cxf.extension.Configurable;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.ws.rs.Consumes;
@@ -20,7 +21,7 @@ import java.util.Map;
 @Consumes(MediaType.WILDCARD)
 @Produces(MediaType.WILDCARD)
 @Slf4j
-public class ISO8601DateParamHandler implements ParamConverterProvider {
+public class ISO8601DateParamHandler implements ParamConverterProvider, Configurable {
 
     private static final SimpleDateFormat DEFAULT_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
     private DateFormat dateFormat = DEFAULT_DATE_FORMAT;
@@ -54,6 +55,7 @@ public class ISO8601DateParamHandler implements ParamConverterProvider {
         }
     }
 
+    @Override
     public void configure(final Map<String, Object> config) {
         final String newDateFormat = (String) config.get("ISO8601DateParamHandler." + DATE_FORMAT_KEY);
         if (newDateFormat != null) {

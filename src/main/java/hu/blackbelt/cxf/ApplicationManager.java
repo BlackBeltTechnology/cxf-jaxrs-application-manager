@@ -1,4 +1,4 @@
-package com.avon.choice.cxf;
+package hu.blackbelt.cxf;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cxf.endpoint.Server;

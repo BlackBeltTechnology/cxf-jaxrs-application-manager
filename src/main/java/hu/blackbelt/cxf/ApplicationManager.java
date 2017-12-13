@@ -36,16 +36,21 @@ public class ApplicationManager {
 
         final String providerList = (String) config.get(PROVIDERS_KEY);
         if (providerList != null) {
+            final List<Object> providers = new LinkedList<>();
             for (final String providerName : providerList.split("\\s*,\\s*")) {
                 try {
                     final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
                     cfg.update(convertToDictionary(config));
-                    log.info("PID: " + cfg.getPid());
+                    if (log.isDebugEnabled()) {
+                        log.debug("JAX-RS provider instance created: " + cfg.getPid());
+                    }
                     configurations.add(cfg);
+                    // TODO - add new provider to the list
                 } catch (IOException ex) {
                     log.error("Unable to create provider: " + providerName, ex);
                 }
             }
+            serverFactory.setProviders(providers);
         }
 
         final Server server = serverFactory.create();

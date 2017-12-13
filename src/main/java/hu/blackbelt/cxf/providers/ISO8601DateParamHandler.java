@@ -62,7 +62,7 @@ public class ISO8601DateParamHandler implements ParamConverterProvider {
     @Activate
     @Modified
     void start(final Map<String, Object> config) {
-        final String newDateFormat = (String) config.get("ISO8601DateParamHandler." + DATE_FORMAT_KEY);
+        final String newDateFormat = (String) config.get(getClass().getSimpleName() + "." + DATE_FORMAT_KEY);
         if (newDateFormat != null) {
             log.info("Update ISO8601DateParamHandler date format: " + newDateFormat);
             dateFormat = new SimpleDateFormat(newDateFormat);

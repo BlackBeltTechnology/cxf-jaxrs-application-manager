@@ -1,8 +1,9 @@
 package hu.blackbelt.cxf.providers;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.osgi.service.component.annotations.Activate;
@@ -24,11 +25,9 @@ import java.util.Map;
 public class JacksonProvider extends JacksonJaxbJsonProvider {
 
     public JacksonProvider() {
-        this(null);
-    }
+        super(JacksonProvider.DEFAULT_ANNOTATIONS);
 
-    public JacksonProvider(ObjectMapper objectMapper) {
-        super(objectMapper, JacksonProvider.DEFAULT_ANNOTATIONS);
+        _mapperConfig.getConfiguredMapper().registerModule(new JavaTimeModule());
 
         configure(SerializationFeature.INDENT_OUTPUT, false);
         configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false); // write timestamps as text instead of epoch to output
@@ -38,22 +37,36 @@ public class JacksonProvider extends JacksonJaxbJsonProvider {
     @Activate
     @Modified
     void start(final Map<String, Object> config) {
+        final String className = getClass().getSimpleName();
         config.forEach((k, v) -> {
-            if (k.startsWith("JacksonProvider.SerializationFeature.")) {
+            if (k.startsWith(className + ".SerializationFeature.")) {
                 try {
-                    final SerializationFeature feature = SerializationFeature.valueOf(k.replace("JacksonProvider.SerializationFeature.", ""));
+                    final SerializationFeature feature = SerializationFeature.valueOf(k.replace(className + ".SerializationFeature.", ""));
                     log.info("Update SerializationFeature option '" + feature + "': " + v);
                     configure(feature, Boolean.parseBoolean((String) v));
                 } catch (IllegalArgumentException ex) {
                     log.warn("Invalid SerializationFeature option: " + k);
                 }
-            } else if (k.startsWith("JacksonProvider.DeserializationFeature.")) {
+            } else if (k.startsWith(className + ".DeserializationFeature.")) {
                 try {
-                    final DeserializationFeature feature = DeserializationFeature.valueOf(k.replace("JacksonProvider.DeserializationFeature.", ""));
+                    final DeserializationFeature feature = DeserializationFeature.valueOf(k.replace(className + ".DeserializationFeature.", ""));
                     log.info("Update DeserializationFeature option '" + feature + "': " + v);
                     configure(feature, Boolean.parseBoolean((String) v));
                 } catch (IllegalArgumentException ex) {
                     log.warn("Invalid DeserializationFeature option: " + k);
+                }
+            } else if ((className + ".ObjectMapper.modules").equals(k) && v != null) {
+                final String moduleList = (String) v;
+                for (final String moduleName : moduleList.split("\\s*,\\s*")) {
+                    try {
+                        log.info("Registering ObjectMapper module: " + moduleName);
+                        final Module m = (Module) Class.forName(moduleName).newInstance();
+                        _mapperConfig.getConfiguredMapper().registerModule(m);
+                    } catch (ClassNotFoundException ex) {
+                        log.error("Unknown ObjectMapper module: " + moduleName, ex);
+                    } catch (InstantiationException | IllegalAccessException ex) {
+                        log.error("Unable to register ObjectMapper module: " + moduleName, ex);
+                    }
                 }
             }
         });

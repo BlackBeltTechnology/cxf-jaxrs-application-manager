@@ -20,7 +20,9 @@
 
     <scm>
         <connection>scm:git:git://github.com/BlackBeltTechnology/cxf-jaxrs-application-manager.git</connection>
-        <developerConnection>scm:git:ssh://${git.username}@github.com:BlackBeltTechnology/cxf-jaxrs-application-manager.git</developerConnection>
+        <developerConnection>
+            scm:git:ssh://${git.username}@github.com:BlackBeltTechnology/cxf-jaxrs-application-manager.git
+        </developerConnection>
         <url>http://github.com/BlackBeltTechnology/cxf-jaxrs-application-manager</url>
     </scm>
 
@@ -145,6 +147,12 @@
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>osgi.core</artifactId>
+            <version>${osgi.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>osgi.cmpn</artifactId>
             <version>${osgi.version}</version>
             <scope>provided</scope>
         </dependency>

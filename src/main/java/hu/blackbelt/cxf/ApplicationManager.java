@@ -13,146 +13,223 @@ import javax.ws.rs.core.Application;
 import javax.ws.rs.ext.RuntimeDelegate;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-@Component(immediate = true, reference = {
-        @Reference(name = "applications", service = Application.class, policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.MULTIPLE, bind = "registerApplication", unbind = "unregisterApplication", updated = "updateApplication")
-})
+@Component(immediate = true)
 @Slf4j
 public class ApplicationManager {
 
     private static final String PROVIDERS_KEY = "providers";
-    private static final String APPLICATION_PID = "application.pid";
+    private static final String APPLICATION_ID = "application.id";
 
-    private static final long CONFIGADMIN_TIMEOUT = 60L;
+    private static final String GENERATED_BY_KEY = "generated.by";
+    private static final String GENERATED_BY_VALUE = UUID.randomUUID().toString();
 
-    private Map<Application, Server> runningServers = new HashMap<>();
-    private Set<Configuration> configurations = new LinkedHashSet<>();
+    @Reference(policyOption = ReferencePolicyOption.GREEDY)
+    ConfigurationAdmin configAdmin;
 
-    void registerApplication(final Application application, final Map<String, Object> config) {
-        if (log.isDebugEnabled()) {
-            log.debug("Register JAX-RS application: " + application);
+    private ApplicationTracker applicationTracker;
+    private ProviderTracker providerTracker;
+
+    private final Map<Object, Application> applications = new HashMap<>();
+    private final Map<Application, Map<String, Configuration>> configurations = new HashMap<>();
+    private final Map<Object, AtomicInteger> semaphores = new HashMap<>();
+    private final Map<Object, Server> servers = new HashMap<>();
+    private final Map<Object, List<Object>> providers = new HashMap<>();
+
+    @Activate
+    void start(final BundleContext context) {
+        applicationTracker = new ApplicationTracker(context);
+        applicationTracker.open();
+
+        try {
+            providerTracker = new ProviderTracker(context);
+            providerTracker.open();
+        } catch (InvalidSyntaxException ex) {
+            throw new IllegalStateException("Unable to start JAX-RS provider tracker", ex);
+        }
+    }
+
+    @Modified
+    void update() {
+        // do not restart application manager
+    }
+
+    @Deactivate
+    void stop() {
+        if (applicationTracker != null) {
+            applicationTracker.close();
+            applicationTracker = null;
+        }
+        if (providerTracker != null) {
+            providerTracker.close();
+            providerTracker = null;
+        }
+    }
+
+    private static Dictionary<String, Object> prepareConfiguration(final ServiceReference reference, final Object id) {
+        final Dictionary<String, Object> dictionary = new Hashtable<>();
+
+        for (final String key : reference.getPropertyKeys()) {
+            if (!key.startsWith("service.") && !key.startsWith("component.") && !key.startsWith("felix.") && !key.startsWith("objectClass")) {
+                dictionary.put(key, reference.getProperty(key));
+            }
+        }
+        dictionary.put(APPLICATION_ID, id);
+        dictionary.put(GENERATED_BY_KEY, GENERATED_BY_VALUE);
+
+        return dictionary;
+    }
+
+    private class ApplicationTracker extends ServiceTracker<Application, Application> {
+        ApplicationTracker(final BundleContext context) {
+            super(context, Application.class, null);
         }
 
+        @Override
+        public Application addingService(ServiceReference<Application> reference) {
+            final Application application = super.addingService(reference);
+            final Object id = reference.getProperty(Constants.SERVICE_ID);
+
+            applications.put(id, application);
+            providers.put(id, new LinkedList<>());
+
+            if (log.isDebugEnabled()) {
+                log.debug("Register JAX-RS application: " + application + "; id = " + id);
+            }
+
+            final Map<String, Configuration> providerConfigs = new TreeMap<>();
+
+            final String providerList = (String) reference.getProperty(PROVIDERS_KEY);
+            if (providerList != null) {
+                final String[] providerClasses = providerList.split("\\s*,\\s*");
+                semaphores.put(id, new AtomicInteger(providerClasses.length));
+                for (final String providerName : providerClasses) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Creating JAX-RS provider instance: " + providerName);
+                    }
+
+                    try {
+                        // TODO - create configuration only if not created manually
+                        final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
+                        cfg.update(prepareConfiguration(reference, id));
+                        providerConfigs.put(providerName, cfg);
+                    } catch (IOException ex) {
+                        log.error("Unable to create provider", ex);
+                    }
+                }
+            } else {
+                semaphores.put(id, new AtomicInteger(0));
+            }
+
+            configurations.put(application, providerConfigs);
+            return application;
+        }
+
+        @Override
+        public void modifiedService(ServiceReference<Application> reference, Application service) {
+            super.modifiedService(reference, service);
+            // TODO - check list of providers (recreate JAX-RS server if changed)
+            final Map<String, Configuration> providers = configurations.get(service);
+            if (providers != null) {
+                providers.forEach((k, v) -> {
+                    try {
+                        v.update(prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID)));
+                    } catch (IOException ex) {
+                        log.warn("Unable to update JAX-RS provider configuration", ex);
+                    }
+                });
+            }
+        }
+
+        @Override
+        public void removedService(ServiceReference<Application> reference, Application service) {
+            final Object id = reference.getProperty(Constants.SERVICE_ID);
+
+            super.removedService(reference, service);
+            final Map<String, Configuration> providerConfigs = configurations.get(service);
+            if (providerConfigs != null) {
+                providerConfigs.forEach((k, v) -> {
+                    try {
+                        v.delete();
+                    } catch (IOException ex) {
+                        log.warn("Unable to delete JAX-RS provider configuration", ex);
+                    }
+                });
+            }
+
+            applications.remove(id);
+            configurations.remove(service);
+            providers.remove(id);
+            semaphores.remove(id);
+        }
+    }
+
+    private class ProviderTracker extends ServiceTracker<Object, Object> {
+        ProviderTracker(final BundleContext context) throws InvalidSyntaxException {
+            super(context, context.createFilter("(" + GENERATED_BY_KEY + "=" + GENERATED_BY_VALUE + ")"), null);
+        }
+
+        @Override
+        public Object addingService(ServiceReference<Object> reference) {
+            final Object service = super.addingService(reference);
+            final Object id = reference.getProperty(APPLICATION_ID);
+            addedProvider(id, service);
+            return service;
+        }
+
+        @Override
+        public void removedService(ServiceReference<Object> reference, Object service) {
+            final Object id = reference.getProperty(APPLICATION_ID);
+            removedProvider(id, service);
+            super.removedService(reference, service);
+        }
+    }
+
+    private void addedProvider(final Object id, final Object service) {
+        providers.get(id).add(service);
+        final AtomicInteger semaphore = semaphores.get(id);
+        if (semaphore != null) {
+            final int missing = semaphore.decrementAndGet();
+            if (missing == 0) {
+                startApplication(id);
+            } else {
+                log.debug("Waiting for providers: " + missing);
+            }
+        } else {
+            log.error("Missing semaphore for application: " + id);
+        }
+    }
+
+    private void removedProvider(final Object id, final Object service) {
+        stopApplication(id);
+        final AtomicInteger semaphore = semaphores.get(id);
+        if (semaphore != null) {
+            semaphore.incrementAndGet();
+        }
+        List<Object> providerList = providers.get(id);
+        if (providerList != null) {
+            providerList.remove(service);
+        }
+    }
+
+    private void startApplication(final Object id) {
+        final Application application = applications.get(id);
         final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
         final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
-        final String providerList = (String) config.get(PROVIDERS_KEY);
-
-        if (providerList != null) {
-            final List<Object> providers = new LinkedList<>();
-            for (final String providerName : providerList.split("\\s*,\\s*")) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Creating JAX-RS provider instance: " + providerName);
-                }
-
-                final Object provider = registerProvider(providerName, config);
-                if (provider != null) {
-                    providers.add(provider);
-                }
-            }
-            serverFactory.setProviders(Collections.unmodifiableList(providers));
-        }
+        serverFactory.setProviders(Collections.unmodifiableList(providers.get(id)));
 
         final Server server = serverFactory.create();
         server.start();
 
-        runningServers.put(application, server);
+        servers.put(id, server);
     }
 
-    void updateApplication(final Application application, final Map<String, Object> config) {
-        if (log.isDebugEnabled()) {
-            log.debug("Updated JAX-RS application registration: " + application);
-        }
-        configurations.forEach(cfg -> {
-            try {
-                cfg.update(prepareConfiguration(config));
-            } catch (IOException ex) {
-                log.warn("Unable to update provider configuration", ex);
-            }
-        });
-    }
-
-    void unregisterApplication(final Application application) {
-        if (log.isDebugEnabled()) {
-            log.debug("Unregister JAX-RS application: " + application);
-        }
-
-        final Server server = runningServers.get(application);
+    private void stopApplication(final Object id) {
+        final Server server = servers.remove(id);
         if (server != null) {
             server.stop();
         }
-
-        configurations.forEach(cfg -> {
-            try {
-                cfg.delete();
-            } catch (IOException ex) {
-                log.warn("Unable to delete provider", ex);
-            }
-        });
-
-        runningServers.remove(application);
-        configurations.clear();
-    }
-
-    private static Dictionary<String, Object> prepareConfiguration(final Map<String, Object> config) {
-        final Dictionary<String, Object> dictionary = config.entrySet().stream()
-                .filter(e -> !e.getKey().startsWith("service.") && !e.getKey().startsWith("component.") && !e.getKey().startsWith("felix.") && !e.getKey().startsWith("objectClass"))
-                .collect(Hashtable<String, Object>::new, (dict, entry) -> dict.put(entry.getKey(), entry.getValue()), Hashtable::putAll);
-        dictionary.put(APPLICATION_PID, config.get(Constants.SERVICE_PID));
-        return dictionary;
-    }
-
-    private static Object registerProvider(final String componentName, final Map<String, Object> config) {
-        final BundleContext context = FrameworkUtil.getBundle(ApplicationManager.class).getBundleContext();
-        final ConfigurationAdmin configAdmin = waitForService(context, ConfigurationAdmin.class, CONFIGADMIN_TIMEOUT, TimeUnit.SECONDS);
-
-        try {
-            final Configuration cfg = configAdmin.getConfiguration(componentName, "?");
-            cfg.update(prepareConfiguration(config));
-        } catch (IOException ex) {
-            log.error("Unable to create provider", ex);
-        }
-
-        final String filter = "(" + APPLICATION_PID + "=" + config.get(Constants.SERVICE_PID) + ")";
-        log.warn("FILTER: " + filter);
-        try {
-            final ServiceReference[] srs = context.getServiceReferences(componentName, filter);
-            if (srs == null || srs.length == 0) {
-                log.warn("No registered provider found: " + componentName);
-                return null;
-            } else {
-                if (srs.length > 1) {
-                    log.warn("Multiple registered providers found: " + componentName);
-                }
-                return context.getService(srs[0]);
-            }
-        } catch (InvalidSyntaxException ex) {
-            log.error("Getting provider failed", ex);
-            return null;
-        }
-    }
-
-    public static <T> ServiceReference<T> waitForServiceReference(final BundleContext context, final Class<T> clazz, final long timeout, final TimeUnit unit) {
-        final ServiceTracker<T, T> tracker = new ServiceTracker<T, T>(context, clazz.getName(), null);
-        tracker.open();
-
-        ServiceReference<T> sref = null;
-        try {
-            if (tracker.waitForService(unit.toMillis(timeout)) != null) {
-                sref = context.getServiceReference(clazz);
-            }
-        } catch (InterruptedException e) {
-            // service will be null
-        } finally {
-            tracker.close();
-        }
-
-        return sref;
-    }
-
-    private static <T> T waitForService(final BundleContext context, final Class<T> clazz, final long timeout, final TimeUnit unit) {
-        final ServiceReference<T> sr = waitForServiceReference(context, clazz, timeout, unit);
-        return context.getService(sr);
     }
 }

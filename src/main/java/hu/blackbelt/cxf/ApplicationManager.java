@@ -3,13 +3,11 @@ package hu.blackbelt.cxf;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cxf.endpoint.Server;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
-import org.osgi.service.cm.Configuration;
-import org.osgi.service.cm.ConfigurationAdmin;
+import org.osgi.framework.*;
 import org.osgi.service.component.annotations.*;
 
 import javax.ws.rs.core.Application;
 import javax.ws.rs.ext.RuntimeDelegate;
-import java.io.IOException;
 import java.util.*;
 
 @Component(immediate = true, reference = {
@@ -21,10 +19,7 @@ public class ApplicationManager {
     private static final String PROVIDERS_KEY = "providers";
 
     private Map<Application, Server> runningServers = new HashMap<>();
-    private Set<Configuration> configurations = new LinkedHashSet<>();
-
-    @Reference(policyOption = ReferencePolicyOption.GREEDY)
-    ConfigurationAdmin configAdmin;
+    private Map<String, ServiceRegistration> serviceRegistrations = new TreeMap<>();
 
     void registerApplication(final Application application, final Map<String, Object> config) {
         if (log.isDebugEnabled()) {
@@ -35,22 +30,26 @@ public class ApplicationManager {
         final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
         final String providerList = (String) config.get(PROVIDERS_KEY);
+
         if (providerList != null) {
             final List<Object> providers = new LinkedList<>();
             for (final String providerName : providerList.split("\\s*,\\s*")) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Creating JAX-RS provider instance: " + providerName);
+                }
                 try {
-                    final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
-                    cfg.update(convertToDictionary(config));
-                    if (log.isDebugEnabled()) {
-                        log.debug("JAX-RS provider instance created: " + cfg.getPid());
-                    }
-                    configurations.add(cfg);
-                    // TODO - add new provider to the list
-                } catch (IOException ex) {
-                    log.error("Unable to create provider: " + providerName, ex);
+                    final Class clazz = Class.forName(providerName);
+                    final Object provider = clazz.newInstance();
+                    providers.add(provider);
+
+                    serviceRegistrations.put(providerName, registerService(clazz, provider, config));
+                } catch (ClassNotFoundException ex) {
+                    log.error("Unknown provider class: " + providerName, ex);
+                } catch (InstantiationException | IllegalAccessException ex) {
+                    log.error("Unable to create provider service", ex);
                 }
             }
-            serverFactory.setProviders(providers);
+            serverFactory.setProviders(Collections.unmodifiableList(providers));
         }
 
         final Server server = serverFactory.create();
@@ -63,16 +62,10 @@ public class ApplicationManager {
         if (log.isDebugEnabled()) {
             log.debug("Updated JAX-RS application registration: " + application);
         }
-        configurations.forEach(c -> {
-            try {
-                c.update(convertToDictionary(config));
-            } catch (IOException ex) {
-                log.error("Unable to update provider configuration", ex);
-            }
-        });
+        serviceRegistrations.values().forEach(p -> p.setProperties(prepareConfiguration(config)));
     }
 
-    void unregisterApplication(final Application application, final Map<String, Object> config) {
+    void unregisterApplication(final Application application) {
         if (log.isDebugEnabled()) {
             log.debug("Unregister JAX-RS application: " + application);
         }
@@ -82,21 +75,20 @@ public class ApplicationManager {
             server.stop();
         }
 
-        configurations.forEach(c -> {
-            try {
-                c.delete();
-            } catch (IOException ex) {
-                log.error("Unable to update provider configuration", ex);
-            }
-        });
+        serviceRegistrations.values().forEach(p -> p.unregister());
 
         runningServers.remove(application);
-        configurations.clear();
+        serviceRegistrations.clear();
     }
 
-    private static Dictionary<String, Object> convertToDictionary(final Map<String, Object> config) {
-        final Hashtable<String, Object> dict = new Hashtable<>();
-        dict.putAll(config);
-        return dict;
+    private static Dictionary<String, Object> prepareConfiguration(final Map<String, Object> config) {
+        return config.entrySet().stream()
+                .filter(e -> !e.getKey().startsWith("service.") && !e.getKey().startsWith("component.") && !e.getKey().startsWith("felix.") && !e.getKey().startsWith("objectClass"))
+                .collect(Hashtable<String, Object>::new, (dict, entry) -> dict.put(entry.getKey(), entry.getValue()), Hashtable::putAll);
+    }
+
+    private static ServiceRegistration registerService(final Class clazz, final Object service, final Map<String, Object> applicationConfig) {
+        final BundleContext context = FrameworkUtil.getBundle(ApplicationManager.class).getBundleContext();
+        return context.registerService(clazz, service, prepareConfiguration(applicationConfig));
     }
 }

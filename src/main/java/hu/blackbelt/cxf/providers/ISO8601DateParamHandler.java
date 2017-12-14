@@ -1,10 +1,6 @@
 package hu.blackbelt.cxf.providers;
 
 import lombok.extern.slf4j.Slf4j;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.ConfigurationPolicy;
-import org.osgi.service.component.annotations.Modified;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
@@ -24,7 +20,6 @@ import java.util.Map;
 @Consumes(MediaType.WILDCARD)
 @Produces(MediaType.WILDCARD)
 @Slf4j
-@Component(immediate = true, configurationPolicy = ConfigurationPolicy.REQUIRE)
 public class ISO8601DateParamHandler implements ParamConverterProvider {
 
     private static final SimpleDateFormat DEFAULT_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
@@ -59,9 +54,8 @@ public class ISO8601DateParamHandler implements ParamConverterProvider {
         }
     }
 
-    @Activate
-    @Modified
-    void start(final Map<String, Object> config) {
+    public void configure(final Map<String, Object> config) {
+        log.error("UPDATE ISO8601DateParamHandler: " + config);
         final String newDateFormat = (String) config.get(getClass().getSimpleName() + "." + DATE_FORMAT_KEY);
         if (newDateFormat != null) {
             log.info("Update ISO8601DateParamHandler date format: " + newDateFormat);

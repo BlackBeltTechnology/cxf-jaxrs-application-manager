@@ -119,7 +119,7 @@ public class ApplicationManager {
                     }
                 }
             } else {
-                semaphores.put(id, new AtomicInteger(0));
+                startApplication(id);
             }
 
             configurations.put(application, providerConfigs);
@@ -145,6 +145,10 @@ public class ApplicationManager {
         @Override
         public void removedService(ServiceReference<Application> reference, Application service) {
             final Object id = reference.getProperty(Constants.SERVICE_ID);
+            List<Object> providerList = providers.remove(id);
+            if (providerList != null && providerList.isEmpty()) {
+                stopApplication(id);
+            }
 
             super.removedService(reference, service);
             final Map<String, Configuration> providerConfigs = configurations.get(service);
@@ -157,10 +161,9 @@ public class ApplicationManager {
                     }
                 });
             }
+            configurations.remove(service);
 
             applications.remove(id);
-            configurations.remove(service);
-            providers.remove(id);
             semaphores.remove(id);
         }
     }

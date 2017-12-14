@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.ConfigurationPolicy;
+import org.osgi.service.component.annotations.Modified;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
@@ -16,6 +20,7 @@ import java.util.Map;
 @Consumes(MediaType.WILDCARD)
 @Produces(MediaType.WILDCARD)
 @Slf4j
+@Component(immediate = true, configurationPolicy = ConfigurationPolicy.REQUIRE, service = JacksonProvider.class)
 public class JacksonProvider extends JacksonJaxbJsonProvider {
 
     public JacksonProvider() {
@@ -26,8 +31,9 @@ public class JacksonProvider extends JacksonJaxbJsonProvider {
         configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    public void configure(final Map<String, Object> config) {
-        log.error("UPDATE JacksonProvider: " + config);
+    @Activate
+    @Modified
+    void configure(final Map<String, Object> config) {
         final String className = getClass().getSimpleName();
         config.forEach((k, v) -> {
             if (k.startsWith(className + ".SerializationFeature.")) {

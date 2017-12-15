@@ -145,10 +145,7 @@ public class ApplicationManager {
         @Override
         public void removedService(ServiceReference<Application> reference, Application service) {
             final Object id = reference.getProperty(Constants.SERVICE_ID);
-            List<Object> providerList = providers.remove(id);
-            if (providerList != null && providerList.isEmpty()) {
-                stopApplication(id);
-            }
+            stopApplication(id);
 
             super.removedService(reference, service);
             final Map<String, Configuration> providerConfigs = configurations.get(service);
@@ -164,6 +161,7 @@ public class ApplicationManager {
             configurations.remove(service);
 
             applications.remove(id);
+            providers.remove(id);
             semaphores.remove(id);
         }
     }

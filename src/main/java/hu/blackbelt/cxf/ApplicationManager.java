@@ -355,8 +355,10 @@ public class ApplicationManager {
                     addedSharedProvider(providerId, provider, filter);
                     restartAllApplications();
                 } else if (filter != null) {
+                    // check shared provider filter
+                    sharedProviders.put(providerId, provider);
                     sharedProviderFilters.put(providerId, filter);
-                    Collection<Long> changedApplicationIds = changedSharedProvider(providerId, filter);
+                    final Collection<Long> changedApplicationIds = changedSharedProvider(providerId, filter);
                     restartApplications(changedApplicationIds);
                 }
             }
@@ -367,10 +369,10 @@ public class ApplicationManager {
             super.removedService(reference, provider);
             if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
-                sharedProviders.remove(providerId);
 
                 final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
                 if (filter != null) {
+                    sharedProviders.remove(providerId);
                     sharedProviderFilters.remove(providerId);
                     final Collection<Long> changedApplicationIds = removedSharedProvider(providerId);
                     restartApplications(changedApplicationIds);

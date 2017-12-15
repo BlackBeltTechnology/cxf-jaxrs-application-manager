@@ -188,7 +188,7 @@ public class ApplicationManager {
                     // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
                     startApplication(applicationId);
                 }
-            } else if (!newProviderObjects.isEmpty() || !providerComponentsToDelete.isEmpty()) {
+            } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
                 restartApplications(Collections.singleton(applicationId));
             }
 
@@ -275,7 +275,7 @@ public class ApplicationManager {
     }
 
     private static Collection<String> getCommaSeparatedList(final String value) {
-        return value != null ? Arrays.asList(value.split("\\s*,\\s*")) : Collections.emptyList();
+        return value != null && !value.trim().isEmpty() ? Arrays.asList(value.split("\\s*,\\s*")) : Collections.emptyList();
     }
 
     private class ProviderTracker extends ServiceTracker<Object, Object> {

@@ -27,6 +27,7 @@ public class ApplicationManager {
 
     private static final String GENERATED_BY_KEY = "__generated.by";
     private static final String GENERATED_BY_VALUE = UUID.randomUUID().toString();
+    private static final String GENERATED_HASHCODE = "__generated.hashCode";
 
     private static final String APPLICATIONS_FILTER = "applications.filter";
 
@@ -101,13 +102,17 @@ public class ApplicationManager {
     private static Dictionary<String, Object> prepareConfiguration(final ServiceReference reference, final Object id) {
         final Dictionary<String, Object> dictionary = new Hashtable<>();
 
+        int hashCode = 1;
         for (final String key : reference.getPropertyKeys()) {
             if (!key.startsWith("service.") && !key.startsWith("component.") && !key.startsWith("felix.") && !key.startsWith("objectClass")) {
-                dictionary.put(key, reference.getProperty(key));
+                final Object value = reference.getProperty(key);
+                dictionary.put(key, value);
+                hashCode = 31 * hashCode + key.hashCode() * 43 + (value == null ? 0 : value.hashCode());
             }
         }
         dictionary.put(APPLICATION_ID, id);
         dictionary.put(GENERATED_BY_KEY, GENERATED_BY_VALUE);
+        dictionary.put(GENERATED_HASHCODE, hashCode);
 
         return dictionary;
     }
@@ -194,10 +199,12 @@ public class ApplicationManager {
 
             final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
             if (providers != null) {
-                providers.forEach((k, v) -> {
+                providers.forEach((providerName, cfg) -> {
                     try {
-                        // TODO - update only if proprties are changed (checksum)
-                        v.update(prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID)));
+                        final Dictionary properties = prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID));
+                        if (!Objects.equals(cfg.getProperties().get(GENERATED_HASHCODE), properties.get(GENERATED_HASHCODE))) {
+                            cfg.update(properties);
+                        }
                     } catch (IOException ex) {
                         log.warn("Unable to update JAX-RS provider configuration", ex);
                     }
@@ -460,11 +467,11 @@ public class ApplicationManager {
         return changed;
     }
 
-    private void addedGlobalProvider(final Long providerId, final Object provider) {
+    private synchronized void addedGlobalProvider(final Long providerId, final Object provider) {
         globalProviders.put(providerId, provider);
     }
 
-    private void removeGlobalProvider(final Long providerId) {
+    private synchronized void removeGlobalProvider(final Long providerId) {
         globalProviders.remove(providerId);
     }
 

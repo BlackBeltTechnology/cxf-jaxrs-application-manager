@@ -15,7 +15,7 @@ import javax.ws.rs.ext.Provider;
 import javax.ws.rs.ext.RuntimeDelegate;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @Component(immediate = true)
 @Slf4j
@@ -40,12 +40,12 @@ public class ApplicationManager {
     private ProviderTracker providerTracker;
 
     private final Map<Long, Application> applications = new HashMap<>();
-    private final Map<Long, AtomicInteger> semaphores = new HashMap<>();
     private final Map<Long, Server> servers = new HashMap<>();
 
-    private final Map<Long, List<Object>> providerComponents = new HashMap<>();
-    private final Map<Application, Map<String, Configuration>> configurations = new HashMap<>();
-    private final Map<Long, List<Object>> providerObjects = new HashMap<>();
+    private final Map<Long, Map<String, Configuration>> providerComponentConfigurations = new HashMap<>();
+    private final Map<Long, Set<String>> missingComponents = new HashMap<>();
+    private final Map<Long, Map<String, Object>> providerComponents = new HashMap<>();
+    private final Map<Long, Map<String, Object>> providerObjects = new HashMap<>();
     private final Map<Long, Set<Long>> sharedApplicationProviders = new HashMap<>();
 
     private final Map<Long, Object> sharedProviders = new HashMap<>();
@@ -120,8 +120,9 @@ public class ApplicationManager {
         @Override
         public Application addingService(final ServiceReference<Application> reference) {
             final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
-            providerComponents.put(applicationId, new LinkedList<>());
-            providerObjects.put(applicationId, new LinkedList<>());
+            providerComponentConfigurations.put(applicationId, new TreeMap<>());
+            providerComponents.put(applicationId, new HashMap<>());
+            providerObjects.put(applicationId, new HashMap<>());
             sharedApplicationProviders.put(applicationId, new HashSet<>());
 
             final Application application = super.addingService(reference);
@@ -135,53 +136,22 @@ public class ApplicationManager {
             }
             applications.put(applicationId, application);
 
-            final Map<String, Configuration> providerConfigs = new TreeMap<>();
-
-            final String providerObjectList = (String) reference.getProperty(JAXRS_PROVIDER_OBJECTS);
-            if (providerObjectList != null) {
-                final String[] providerClasses = providerObjectList.split("\\s*,\\s*");
-                for (final String providerName : providerClasses) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Creating JAX-RS provider object: " + providerName);
-                    }
-
-                    try {
-                        final Class clazz = Class.forName(providerName);
-                        final Object provider = clazz.newInstance();
-                        providerObjects.get(applicationId).add(provider);
-                    } catch (ClassNotFoundException ex) {
-                        log.error("Missing JAX-RS provider class: " + providerName, ex);
-                    } catch (InstantiationException | IllegalAccessException ex) {
-                        log.error("Unable to create provider object", ex);
-                    }
-                }
-            }
-
             // rescan all shared providers
             sharedProviderFilters.forEach((providerId, filter) -> changedSharedProvider(providerId, filter));
 
-            final String providerComponentList = (String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS);
-            if (providerComponentList != null) {
-                final String[] providerClasses = providerComponentList.split("\\s*,\\s*");
-                semaphores.put(applicationId, new AtomicInteger(providerClasses.length));
-                for (final String providerName : providerClasses) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("Creating JAX-RS provider component: " + providerName);
-                    }
+            // create JAX-RS provider objects
+            getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS)).forEach(providerName -> createProviderObject(applicationId, providerName));
 
-                    try {
-                        final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
-                        cfg.update(prepareConfiguration(reference, applicationId));
-                        providerConfigs.put(providerName, cfg);
-                    } catch (IOException ex) {
-                        log.error("Unable to create provider component", ex);
-                    }
-                }
-            } else {
+            // create JAX-RS provider components
+            final Collection<String> componentProviders = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
+            missingComponents.put(applicationId, new TreeSet<>(componentProviders));
+            componentProviders.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
+
+            // start application if JAX-RS provider list is empty
+            if (componentProviders.isEmpty()) {
                 startApplication(applicationId);
             }
 
-            configurations.put(application, providerConfigs);
             return application;
         }
 
@@ -192,8 +162,37 @@ public class ApplicationManager {
                 return;
             }
 
-            // TODO - check list of providerComponents (recreate JAX-RS server if changed)
-            final Map<String, Configuration> providers = configurations.get(application);
+            final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
+
+            final Collection<String> updatedProviderObjects = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS));
+            final Collection<String> updatedProviderComponents = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
+
+            final Collection<String> existingProviderObjects = providerObjects.get(applicationId).keySet();
+            final Collection<String> existingProviderComponents = providerComponentConfigurations.get(applicationId).keySet();
+
+            final Collection<String> newProviderObjects = updatedProviderObjects.stream().filter(o -> !existingProviderObjects.contains(o)).collect(Collectors.toList());
+            final Collection<String> providerObjectsToDelete = existingProviderObjects.stream().filter(o -> !updatedProviderObjects.contains(o)).collect(Collectors.toList());
+            final Collection<String> newProviderComponents = updatedProviderComponents.stream().filter(o -> !existingProviderComponents.contains(o)).collect(Collectors.toList());
+            final Collection<String> providerComponentsToDelete = existingProviderComponents.stream().filter(o -> !updatedProviderComponents.contains(o)).collect(Collectors.toList());
+
+            newProviderObjects.forEach(providerName -> createProviderObject(applicationId, providerName));
+            providerObjectsToDelete.forEach(providerName -> deleteProviderObject(applicationId, providerName));
+
+            if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty()) {
+                stopApplication(applicationId);
+                missingComponents.get(applicationId).addAll(newProviderComponents);
+                missingComponents.get(applicationId).removeAll(providerComponentsToDelete);
+                providerComponentsToDelete.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
+                newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
+                if (newProviderComponents.isEmpty()) {
+                    // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
+                    startApplication(applicationId);
+                }
+            } else if (!newProviderObjects.isEmpty() || !providerComponentsToDelete.isEmpty()) {
+                restartApplications(Collections.singleton(applicationId));
+            }
+
+            final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
             if (providers != null) {
                 providers.forEach((k, v) -> {
                     try {
@@ -216,24 +215,67 @@ public class ApplicationManager {
             final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
             stopApplication(applicationId);
 
-            final Map<String, Configuration> providerConfigs = configurations.get(application);
-            if (providerConfigs != null) {
-                providerConfigs.forEach((k, v) -> {
-                    try {
-                        v.delete();
-                    } catch (IOException ex) {
-                        log.warn("Unable to delete JAX-RS provider configuration", ex);
-                    }
-                });
-            }
-            configurations.remove(application);
+            final Map<String, Object> components = providerComponents.get(applicationId);
+            final Collection<String> providerNames = components != null ? components.keySet() : Collections.emptyList();
+            providerNames.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
 
             applications.remove(applicationId);
             providerComponents.remove(applicationId);
             providerObjects.remove(applicationId);
+            providerComponentConfigurations.remove(applicationId);
             sharedApplicationProviders.remove(applicationId);
-            semaphores.remove(applicationId);
+            missingComponents.remove(applicationId);
         }
+    }
+
+    private void createProviderObject(final Long applicationId, final String providerName) {
+        if (log.isDebugEnabled()) {
+            log.debug("Creating JAX-RS provider object: " + providerName);
+        }
+
+        try {
+            final Class clazz = Class.forName(providerName);
+            final Object provider = clazz.newInstance();
+            providerObjects.get(applicationId).put(providerName, provider);
+        } catch (ClassNotFoundException ex) {
+            log.error("Missing JAX-RS provider class: " + providerName, ex);
+        } catch (InstantiationException | IllegalAccessException ex) {
+            log.error("Unable to create provider object", ex);
+        }
+    }
+
+    private void createProviderComponent(final Long applicationId, final String providerName, final Dictionary<String, Object> properties) {
+        if (log.isDebugEnabled()) {
+            log.debug("Creating JAX-RS provider component: " + providerName);
+        }
+
+        try {
+            final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
+            cfg.update(properties);
+            providerComponentConfigurations.get(applicationId).put(providerName, cfg);
+        } catch (IOException ex) {
+            log.error("Unable to create provider component", ex);
+        }
+    }
+
+    private void deleteProviderObject(final Long applicationId, final String providerName) {
+        providerObjects.get(applicationId).remove(providerName);
+    }
+
+    private void deleteProviderComponent(final Long applicationId, final String providerName) {
+        providerComponents.get(applicationId).remove(providerName);
+        final Configuration cfg = providerComponentConfigurations.get(applicationId).remove(providerName);
+        if (cfg != null) {
+            try {
+                cfg.delete();
+            } catch (IOException ex) {
+                log.warn("Unable to delete JAX-RS provider configuration", ex);
+            }
+        }
+    }
+
+    private static Collection<String> getCommaSeparatedList(final String value) {
+        return value != null ? Arrays.asList(value.split("\\s*,\\s*")) : Collections.emptyList();
     }
 
     private class ProviderTracker extends ServiceTracker<Object, Object> {
@@ -246,7 +288,8 @@ public class ApplicationManager {
             final Object provider = super.addingService(reference);
             if (provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long applicationId = (Long) reference.getProperty(APPLICATION_ID);
-                addedLocalProvider(applicationId, provider);
+                final String providerName = provider.getClass().getName(); // FIXME - get OSGi name instead of Java object class
+                addedLocalProvider(applicationId, providerName, provider);
             }
             return provider;
         }
@@ -255,7 +298,8 @@ public class ApplicationManager {
         public void removedService(final ServiceReference<Object> reference, final Object provider) {
             if (provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long applicationId = (Long) reference.getProperty(APPLICATION_ID);
-                removedLocalProvider(applicationId, provider);
+                final String providerName = provider.getClass().getName(); // FIXME - get OSGi name instead of Java object class
+                removedLocalProvider(applicationId, providerName);
             }
             super.removedService(reference, provider);
         }
@@ -331,30 +375,28 @@ public class ApplicationManager {
         }
     }
 
-    private void addedLocalProvider(final Long applicationId, final Object provider) {
-        providerComponents.get(applicationId).add(provider);
-        final AtomicInteger semaphore = semaphores.get(applicationId);
-        if (semaphore != null) {
-            final int missing = semaphore.decrementAndGet();
-            if (missing == 0) {
+    private synchronized void addedLocalProvider(final Long applicationId, final String providerName, final Object provider) {
+        providerComponents.get(applicationId).put(providerName, provider);
+        final Set<String> components = missingComponents.get(applicationId);
+        if (components != null) {
+            components.remove(providerName);
+            if (components.isEmpty()) {
                 startApplication(applicationId);
             } else {
-                log.debug("Waiting for providerComponents: " + missing);
+                log.debug("Waiting for JAX-RS provider components: " + components);
             }
-        } else {
-            log.error("Missing semaphore for application: " + applicationId);
         }
     }
 
-    private void removedLocalProvider(final Long applicationId, final Object provider) {
-        stopApplication(applicationId);
-        final AtomicInteger semaphore = semaphores.get(applicationId);
-        if (semaphore != null) {
-            semaphore.incrementAndGet();
+    private synchronized void removedLocalProvider(final Long applicationId, final String providerName) {
+        // server is not stopped is a JAX-RS provider is removed because it is managed by ApplicationTracker
+        final Map<String, Object> providers = providerComponents.get(applicationId);
+        if (providers != null) {
+            providers.remove(providerName);
         }
-        List<Object> providerList = providerComponents.get(applicationId);
-        if (providerList != null) {
-            providerList.remove(provider);
+        final Map<String, Configuration> configurations = providerComponentConfigurations.get(applicationId);
+        if (configurations != null) {
+            configurations.remove(providerName);
         }
     }
 
@@ -447,8 +489,8 @@ public class ApplicationManager {
         sharedApplicationProviders.get(applicationId).forEach(providerId -> {
             providersToAdd.add(sharedProviders.get(providerId));
         });
-        providersToAdd.addAll(providerComponents.get(applicationId));
-        providersToAdd.addAll(providerObjects.get(applicationId));
+        providersToAdd.addAll(providerComponents.get(applicationId).values());
+        providersToAdd.addAll(providerObjects.get(applicationId).values());
 
         serverFactory.setProviders(Collections.unmodifiableList(providersToAdd));
 

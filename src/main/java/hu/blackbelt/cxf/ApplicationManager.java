@@ -157,7 +157,8 @@ public class ApplicationManager {
                 }
             }
 
-            // TODO - initialize map of shared providers for the new JAX-RS application
+            // rescan all shared providers
+            sharedProviderFilters.forEach((providerId, filter) -> changedSharedProvider(providerId, filter));
 
             final String providerComponentList = (String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS);
             if (providerComponentList != null) {

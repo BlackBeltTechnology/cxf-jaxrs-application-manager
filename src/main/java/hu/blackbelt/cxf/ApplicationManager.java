@@ -27,8 +27,7 @@ public class ApplicationManager {
     private static final String GENERATED_BY_KEY = "__generated.by";
     private static final String GENERATED_BY_VALUE = UUID.randomUUID().toString();
 
-    private static final String CORRELATION_KEY_KEY = "correlation.key";
-    private static final String CORRELATION_VALUE_KEY = "correlation.value";
+    private static final String APPLICATIONS_FILTER = "applications.filter";
 
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
     ConfigurationAdmin configAdmin;
@@ -246,9 +245,9 @@ public class ApplicationManager {
             final Object service = super.addingService(reference);
             if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && service.getClass().isAnnotationPresent(Provider.class)) {
                 final Object id = reference.getProperty(Constants.SERVICE_ID);
-                final Object correlationKey = reference.getProperty(CORRELATION_KEY_KEY);
-                if (correlationKey != null) {
-                    addedSharedProvider(id, service, correlationKey, reference.getProperty(CORRELATION_VALUE_KEY));
+                final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
+                if (filter != null) {
+                    addedSharedProvider(id, service, filter);
                 } else {
                     addedGlobalProvider(reference.getProperty(Constants.SERVICE_ID), service);
                 }
@@ -261,15 +260,15 @@ public class ApplicationManager {
             super.modifiedService(reference, service);
             if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && service.getClass().isAnnotationPresent(Provider.class)) {
                 final Object id = reference.getProperty(Constants.SERVICE_ID);
-                final Object correlationKey = reference.getProperty(CORRELATION_KEY_KEY);
-                if (correlationKey == null && !globalProviders.containsKey(id)) {
+                final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
+                if (filter == null && !globalProviders.containsKey(id)) {
                     // change provider to global
                     //removedSharedProvider(id); --> TODO
                     addedGlobalProvider(id, service);
-                } else if (correlationKey != null && globalProviders.containsKey(id)) {
+                } else if (filter != null && globalProviders.containsKey(id)) {
                     // change provider to shared
                     removeGlobalProvider(id);
-                    addedSharedProvider(id, service, correlationKey, reference.getProperty(CORRELATION_VALUE_KEY));
+                    addedSharedProvider(id, service, filter);
                 }
             }
         }
@@ -279,8 +278,8 @@ public class ApplicationManager {
             super.removedService(reference, service);
             if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && service.getClass().isAnnotationPresent(Provider.class)) {
                 final Object id = reference.getProperty(Constants.SERVICE_ID);
-                final Object correlationKey = reference.getProperty(CORRELATION_KEY_KEY);
-                if (correlationKey != null) {
+                final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
+                if (filter != null) {
                     removedSharedProvider(id);
                 } else {
                     removeGlobalProvider(reference.getProperty(Constants.SERVICE_ID));
@@ -316,7 +315,7 @@ public class ApplicationManager {
         }
     }
 
-    private void addedSharedProvider(final Object id, final Object service, final Object correlationKey, final Object correlationValue) {
+    private void addedSharedProvider(final Object id, final Object service, final String correlationKey) {
         log.warn("Shared providerComponents are not supported yet.");
     }
 

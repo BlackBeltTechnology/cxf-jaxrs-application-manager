@@ -10,6 +10,7 @@ import org.osgi.service.component.annotations.*;
 import org.osgi.util.tracker.ServiceTracker;
 
 import javax.ws.rs.core.Application;
+import javax.ws.rs.ext.Provider;
 import javax.ws.rs.ext.RuntimeDelegate;
 import java.io.IOException;
 import java.util.*;
@@ -19,28 +20,43 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class ApplicationManager {
 
-    private static final String PROVIDERS_KEY = "providers";
+    private static final String JAXRS_PROVIDER_COMPONENTS = "jaxrs.provider.components";
+    private static final String JAXRS_PROVIDER_OBJECTS = "jaxrs.provider.objects";
     private static final String APPLICATION_ID = "application.id";
 
-    private static final String GENERATED_BY_KEY = "generated.by";
+    private static final String GENERATED_BY_KEY = "__generated.by";
     private static final String GENERATED_BY_VALUE = UUID.randomUUID().toString();
+
+    private static final String CORRELATION_KEY_KEY = "correlation.key";
+    private static final String CORRELATION_VALUE_KEY = "correlation.value";
 
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
     ConfigurationAdmin configAdmin;
 
     private ApplicationTracker applicationTracker;
+    private SharedProviderTracker sharedProviderTracker;
     private ProviderTracker providerTracker;
 
     private final Map<Object, Application> applications = new HashMap<>();
     private final Map<Application, Map<String, Configuration>> configurations = new HashMap<>();
     private final Map<Object, AtomicInteger> semaphores = new HashMap<>();
     private final Map<Object, Server> servers = new HashMap<>();
-    private final Map<Object, List<Object>> providers = new HashMap<>();
+    private final Map<Object, List<Object>> providerComponents = new HashMap<>();
+    private final Map<Object, List<Object>> providerObjects = new HashMap<>();
+
+    private final Map<Object, Object> globalProviders = new LinkedHashMap<>();
 
     @Activate
     void start(final BundleContext context) {
         applicationTracker = new ApplicationTracker(context);
         applicationTracker.open();
+
+        try {
+            sharedProviderTracker = new SharedProviderTracker(context);
+            sharedProviderTracker.open();
+        } catch (InvalidSyntaxException ex) {
+            throw new IllegalStateException("Unable to start shared JAX-RS provider tracker", ex);
+        }
 
         try {
             providerTracker = new ProviderTracker(context);
@@ -57,13 +73,20 @@ public class ApplicationManager {
 
     @Deactivate
     void stop() {
-        if (applicationTracker != null) {
-            applicationTracker.close();
-            applicationTracker = null;
+        if (sharedProviderTracker != null) {
+            sharedProviderTracker.close();
+            sharedProviderTracker = null;
         }
         if (providerTracker != null) {
             providerTracker.close();
             providerTracker = null;
+        }
+        if (applicationTracker != null) {
+            applicationTracker.close();
+            applicationTracker = null;
+        }
+        for (final Iterator<Map.Entry<Object, Server>> it = servers.entrySet().iterator(); it.hasNext(); ) {
+            stopApplication(it.next().getKey());
         }
     }
 
@@ -92,7 +115,8 @@ public class ApplicationManager {
             final Object id = reference.getProperty(Constants.SERVICE_ID);
 
             applications.put(id, application);
-            providers.put(id, new LinkedList<>());
+            providerComponents.put(id, new LinkedList<>());
+            providerObjects.put(id, new LinkedList<>());
 
             if (log.isDebugEnabled()) {
                 log.debug("Register JAX-RS application: " + application + "; id = " + id);
@@ -100,22 +124,41 @@ public class ApplicationManager {
 
             final Map<String, Configuration> providerConfigs = new TreeMap<>();
 
-            final String providerList = (String) reference.getProperty(PROVIDERS_KEY);
-            if (providerList != null) {
-                final String[] providerClasses = providerList.split("\\s*,\\s*");
-                semaphores.put(id, new AtomicInteger(providerClasses.length));
+            final String providerObjectList = (String) reference.getProperty(JAXRS_PROVIDER_OBJECTS);
+            if (providerObjectList != null) {
+                final String[] providerClasses = providerObjectList.split("\\s*,\\s*");
                 for (final String providerName : providerClasses) {
                     if (log.isDebugEnabled()) {
-                        log.debug("Creating JAX-RS provider instance: " + providerName);
+                        log.debug("Creating JAX-RS provider object: " + providerName);
                     }
 
                     try {
-                        // TODO - create configuration only if not created manually
+                        final Class clazz = Class.forName(providerName);
+                        final Object provider = clazz.newInstance();
+                        providerObjects.get(id).add(provider);
+                    } catch (ClassNotFoundException ex) {
+                        log.error("Missing JAX-RS provider class: " + providerName, ex);
+                    } catch (InstantiationException | IllegalAccessException ex) {
+                        log.error("Unable to create provider object", ex);
+                    }
+                }
+            }
+
+            final String providerComponentList = (String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS);
+            if (providerComponentList != null) {
+                final String[] providerClasses = providerComponentList.split("\\s*,\\s*");
+                semaphores.put(id, new AtomicInteger(providerClasses.length));
+                for (final String providerName : providerClasses) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Creating JAX-RS provider component: " + providerName);
+                    }
+
+                    try {
                         final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
                         cfg.update(prepareConfiguration(reference, id));
                         providerConfigs.put(providerName, cfg);
                     } catch (IOException ex) {
-                        log.error("Unable to create provider", ex);
+                        log.error("Unable to create provider component", ex);
                     }
                 }
             } else {
@@ -129,11 +172,12 @@ public class ApplicationManager {
         @Override
         public void modifiedService(ServiceReference<Application> reference, Application service) {
             super.modifiedService(reference, service);
-            // TODO - check list of providers (recreate JAX-RS server if changed)
+            // TODO - check list of providerComponents (recreate JAX-RS server if changed)
             final Map<String, Configuration> providers = configurations.get(service);
             if (providers != null) {
                 providers.forEach((k, v) -> {
                     try {
+                        // TODO - update only if proprties are changed (checksum)
                         v.update(prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID)));
                     } catch (IOException ex) {
                         log.warn("Unable to update JAX-RS provider configuration", ex);
@@ -161,7 +205,8 @@ public class ApplicationManager {
             configurations.remove(service);
 
             applications.remove(id);
-            providers.remove(id);
+            providerComponents.remove(id);
+            providerObjects.remove(id);
             semaphores.remove(id);
         }
     }
@@ -174,52 +219,140 @@ public class ApplicationManager {
         @Override
         public Object addingService(ServiceReference<Object> reference) {
             final Object service = super.addingService(reference);
-            final Object id = reference.getProperty(APPLICATION_ID);
-            addedProvider(id, service);
+            if (service.getClass().isAnnotationPresent(Provider.class)) {
+                final Object id = reference.getProperty(APPLICATION_ID);
+                addedLocalProvider(id, service);
+            }
             return service;
         }
 
         @Override
         public void removedService(ServiceReference<Object> reference, Object service) {
-            final Object id = reference.getProperty(APPLICATION_ID);
-            removedProvider(id, service);
+            if (service.getClass().isAnnotationPresent(Provider.class)) {
+                final Object id = reference.getProperty(APPLICATION_ID);
+                removedLocalProvider(id, service);
+            }
             super.removedService(reference, service);
         }
     }
 
-    private void addedProvider(final Object id, final Object service) {
-        providers.get(id).add(service);
+    private class SharedProviderTracker extends ServiceTracker<Object, Object> {
+        SharedProviderTracker(final BundleContext context) throws InvalidSyntaxException {
+            super(context, context.createFilter("(" + Constants.OBJECTCLASS + "=*)"), null);
+        }
+
+        @Override
+        public Object addingService(ServiceReference<Object> reference) {
+            final Object service = super.addingService(reference);
+            if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && service.getClass().isAnnotationPresent(Provider.class)) {
+                final Object id = reference.getProperty(Constants.SERVICE_ID);
+                final Object correlationKey = reference.getProperty(CORRELATION_KEY_KEY);
+                if (correlationKey != null) {
+                    addedSharedProvider(id, service, correlationKey, reference.getProperty(CORRELATION_VALUE_KEY));
+                } else {
+                    addedGlobalProvider(reference.getProperty(Constants.SERVICE_ID), service);
+                }
+            }
+            return service;
+        }
+
+        @Override
+        public void modifiedService(ServiceReference<Object> reference, Object service) {
+            super.modifiedService(reference, service);
+            if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && service.getClass().isAnnotationPresent(Provider.class)) {
+                final Object id = reference.getProperty(Constants.SERVICE_ID);
+                final Object correlationKey = reference.getProperty(CORRELATION_KEY_KEY);
+                if (correlationKey == null && !globalProviders.containsKey(id)) {
+                    // change provider to global
+                    //removedSharedProvider(id); --> TODO
+                    addedGlobalProvider(id, service);
+                } else if (correlationKey != null && globalProviders.containsKey(id)) {
+                    // change provider to shared
+                    removeGlobalProvider(id);
+                    addedSharedProvider(id, service, correlationKey, reference.getProperty(CORRELATION_VALUE_KEY));
+                }
+            }
+        }
+
+        @Override
+        public void removedService(ServiceReference<Object> reference, Object service) {
+            super.removedService(reference, service);
+            if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && service.getClass().isAnnotationPresent(Provider.class)) {
+                final Object id = reference.getProperty(Constants.SERVICE_ID);
+                final Object correlationKey = reference.getProperty(CORRELATION_KEY_KEY);
+                if (correlationKey != null) {
+                    removedSharedProvider(id);
+                } else {
+                    removeGlobalProvider(reference.getProperty(Constants.SERVICE_ID));
+                }
+            }
+        }
+    }
+
+    private void addedLocalProvider(final Object id, final Object service) {
+        providerComponents.get(id).add(service);
         final AtomicInteger semaphore = semaphores.get(id);
         if (semaphore != null) {
             final int missing = semaphore.decrementAndGet();
             if (missing == 0) {
                 startApplication(id);
             } else {
-                log.debug("Waiting for providers: " + missing);
+                log.debug("Waiting for providerComponents: " + missing);
             }
         } else {
             log.error("Missing semaphore for application: " + id);
         }
     }
 
-    private void removedProvider(final Object id, final Object service) {
+    private void removedLocalProvider(final Object id, final Object service) {
         stopApplication(id);
         final AtomicInteger semaphore = semaphores.get(id);
         if (semaphore != null) {
             semaphore.incrementAndGet();
         }
-        List<Object> providerList = providers.get(id);
+        List<Object> providerList = providerComponents.get(id);
         if (providerList != null) {
             providerList.remove(service);
         }
     }
 
-    private void startApplication(final Object id) {
+    private void addedSharedProvider(final Object id, final Object service, final Object correlationKey, final Object correlationValue) {
+        log.warn("Shared providerComponents are not supported yet.");
+    }
+
+    private void removedSharedProvider(final Object id) {
+        log.warn("Shared providerComponents are not supported yet.");
+    }
+
+    private void addedGlobalProvider(final Object id, final Object service) {
+        globalProviders.put(id, service);
+        restartAllApplications();
+    }
+
+    private void removeGlobalProvider(final Object id) {
+        globalProviders.remove(id);
+        restartAllApplications();
+    }
+
+    private void restartAllApplications() {
+        final List<Object> ids = new ArrayList<>(servers.keySet());
+        ids.forEach(id -> {
+            stopApplication(id);
+            startApplication(id);
+        });
+    }
+
+    private synchronized void startApplication(final Object id) {
         final Application application = applications.get(id);
         final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
         final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
-        serverFactory.setProviders(Collections.unmodifiableList(providers.get(id)));
+        final List<Object> providersToAdd = new LinkedList<>();
+        providersToAdd.addAll(globalProviders.values());
+        providersToAdd.addAll(providerComponents.get(id));
+        providersToAdd.addAll(providerObjects.get(id));
+
+        serverFactory.setProviders(Collections.unmodifiableList(providersToAdd));
 
         final Server server = serverFactory.create();
         server.start();
@@ -227,7 +360,7 @@ public class ApplicationManager {
         servers.put(id, server);
     }
 
-    private void stopApplication(final Object id) {
+    private synchronized void stopApplication(final Object id) {
         final Server server = servers.remove(id);
         if (server != null) {
             server.stop();

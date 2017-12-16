@@ -1,8 +1,6 @@
-package hu.blackbelt.cxf;
+package hu.blackbelt.jaxrs;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.cxf.endpoint.Server;
-import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.osgi.framework.*;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
@@ -12,7 +10,6 @@ import org.osgi.util.tracker.ServiceTracker;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.ext.Provider;
-import javax.ws.rs.ext.RuntimeDelegate;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +28,10 @@ public class ApplicationManager {
 
     private static final String APPLICATIONS_FILTER = "applications.filter";
 
+    // define target filter in configuration in case of multiple JAX-RS implementations
+    @Reference(target = "(" + ServerManager.ALIAS_KEY + "=" + CxfServerManager.ALIAS_VALUE + ")")
+    ServerManager serverManager;
+
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
     ConfigurationAdmin configAdmin;
 
@@ -41,7 +42,6 @@ public class ApplicationManager {
     private ProviderTracker providerTracker;
 
     private final Map<Long, Application> applications = new HashMap<>();
-    private final Map<Long, Server> servers = new HashMap<>();
 
     private final Map<Long, Map<String, Configuration>> providerComponentConfigurations = new HashMap<>();
     private final Map<Long, Set<String>> missingComponents = new HashMap<>();
@@ -93,9 +93,7 @@ public class ApplicationManager {
             applicationTracker.close();
             applicationTracker = null;
         }
-        for (final Iterator<Map.Entry<Long, Server>> it = servers.entrySet().iterator(); it.hasNext(); ) {
-            stopApplication(it.next().getKey());
-        }
+        serverManager.shutdown();
         context = null;
     }
 
@@ -154,7 +152,7 @@ public class ApplicationManager {
 
             // start application if JAX-RS provider list is empty
             if (componentProviders.isEmpty()) {
-                startApplication(applicationId);
+                serverManager.startApplication(applicationId, application, getSingleApplicationProviders(applicationId));
             }
 
             return application;
@@ -184,17 +182,17 @@ public class ApplicationManager {
             providerObjectsToDelete.forEach(providerName -> deleteProviderObject(applicationId, providerName));
 
             if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty()) {
-                stopApplication(applicationId);
+                serverManager.stopApplication(applicationId);
                 missingComponents.get(applicationId).addAll(newProviderComponents);
                 missingComponents.get(applicationId).removeAll(providerComponentsToDelete);
                 providerComponentsToDelete.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
                 newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
                 if (newProviderComponents.isEmpty()) {
                     // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
-                    startApplication(applicationId);
+                    serverManager.startApplication(applicationId, application, getSingleApplicationProviders(applicationId));
                 }
             } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
-                restartApplications(Collections.singleton(applicationId));
+                serverManager.restartApplications(Collections.singleton(applicationId), getApplicationProviders(Collections.singleton(applicationId)));
             }
 
             final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
@@ -220,7 +218,7 @@ public class ApplicationManager {
             }
 
             final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
-            stopApplication(applicationId);
+            serverManager.stopApplication(applicationId);
 
             final Map<String, Object> components = providerComponents.get(applicationId);
             final Collection<String> providerNames = components != null ? components.keySet() : Collections.emptyList();
@@ -327,10 +325,10 @@ public class ApplicationManager {
                     sharedProviders.put(providerId, provider);
                     sharedProviderFilters.put(providerId, filter);
                     final Collection<Long> changedApplicationIds = addedSharedProvider(providerId, provider, filter);
-                    restartApplications(changedApplicationIds);
+                    serverManager.restartApplications(changedApplicationIds, getApplicationProviders(changedApplicationIds));
                 } else {
                     addedGlobalProvider(providerId, provider);
-                    restartAllApplications();
+                    serverManager.restartAllApplications(getApplicationProviders(null));
                 }
             }
             return provider;
@@ -347,19 +345,19 @@ public class ApplicationManager {
                     sharedProviderFilters.remove(providerId);
                     removedSharedProvider(providerId);
                     addedGlobalProvider(providerId, provider);
-                    restartAllApplications();
+                    serverManager.restartAllApplications(getApplicationProviders(null));
                 } else if (filter != null && globalProviders.containsKey(providerId)) {
                     // change provider to shared
                     sharedProviderFilters.put(providerId, filter);
                     removeGlobalProvider(providerId);
                     addedSharedProvider(providerId, provider, filter);
-                    restartAllApplications();
+                    serverManager.restartAllApplications(getApplicationProviders(null));
                 } else if (filter != null) {
                     // check shared provider filter
                     sharedProviders.put(providerId, provider);
                     sharedProviderFilters.put(providerId, filter);
                     final Collection<Long> changedApplicationIds = changedSharedProvider(providerId, filter);
-                    restartApplications(changedApplicationIds);
+                    serverManager.restartApplications(changedApplicationIds, getApplicationProviders(changedApplicationIds));
                 }
             }
         }
@@ -375,10 +373,10 @@ public class ApplicationManager {
                     sharedProviders.remove(providerId);
                     sharedProviderFilters.remove(providerId);
                     final Collection<Long> changedApplicationIds = removedSharedProvider(providerId);
-                    restartApplications(changedApplicationIds);
+                    serverManager.restartApplications(changedApplicationIds, getApplicationProviders(changedApplicationIds));
                 } else {
                     removeGlobalProvider(providerId);
-                    restartAllApplications();
+                    serverManager.restartAllApplications(getApplicationProviders(null));
                 }
             }
         }
@@ -390,7 +388,7 @@ public class ApplicationManager {
         if (components != null) {
             components.remove(providerName);
             if (components.isEmpty()) {
-                startApplication(applicationId);
+                serverManager.startApplication(applicationId, applications.get(applicationId), getSingleApplicationProviders(applicationId));
             } else {
                 log.debug("Waiting for JAX-RS provider components: " + components);
             }
@@ -477,22 +475,7 @@ public class ApplicationManager {
         globalProviders.remove(providerId);
     }
 
-    private void restartApplications(final Collection<Long> applicationIds) {
-        applicationIds.forEach(id -> {
-            stopApplication(id);
-            startApplication(id);
-        });
-    }
-
-    private void restartAllApplications() {
-        restartApplications(new ArrayList<>(servers.keySet()));
-    }
-
-    private synchronized void startApplication(final Long applicationId) {
-        final Application application = applications.get(applicationId);
-        final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
-        final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
-
+    private List<Object> getSingleApplicationProviders(final Long applicationId) {
         final List<Object> providersToAdd = new LinkedList<>();
         providersToAdd.addAll(globalProviders.values());
         sharedApplicationProviders.get(applicationId).forEach(providerId -> {
@@ -501,18 +484,19 @@ public class ApplicationManager {
         providersToAdd.addAll(providerComponents.get(applicationId).values());
         providersToAdd.addAll(providerObjects.get(applicationId).values());
 
-        serverFactory.setProviders(Collections.unmodifiableList(providersToAdd));
-
-        final Server server = serverFactory.create();
-        server.start();
-
-        servers.put(applicationId, server);
+        return Collections.unmodifiableList(providersToAdd);
     }
 
-    private synchronized void stopApplication(final Long applicationId) {
-        final Server server = servers.remove(applicationId);
-        if (server != null) {
-            server.stop();
+    private Map<Long, List<Object>> getApplicationProviders(Collection<Long> applicationIds) {
+        final Map<Long, List<Object>> providers = new HashMap<>();
+
+        if (applicationIds == null) {
+            // collect providers for all applications
+            applicationIds = applications.keySet();
         }
+
+        applicationIds.forEach(applicationId -> providers.put(applicationId, getSingleApplicationProviders(applicationId)));
+
+        return providers;
     }
 }

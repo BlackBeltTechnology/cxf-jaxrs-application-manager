@@ -1,4 +1,4 @@
-package hu.blackbelt.cxf.providers;
+package hu.blackbelt.jaxrs.providers;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.Module;

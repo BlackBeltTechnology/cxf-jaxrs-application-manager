@@ -25,9 +25,9 @@ public class SharedProviderStore {
     private final Map<Long, Object> globalProviders = new ConcurrentHashMap<>();
 
     private BundleContext context;
-    private ServerCallback callback;
+    private Callback callback;
 
-    SharedProviderStore(final BundleContext context, final ServerCallback callback) {
+    SharedProviderStore(final BundleContext context, final Callback callback) {
         this.context = context;
         this.callback = callback;
     }
@@ -208,7 +208,7 @@ public class SharedProviderStore {
         globalProviders.remove(providerId);
     }
 
-    interface ServerCallback {
+    interface Callback {
         void restartApplications(Collection<Long> applicationIds);
     }
 }

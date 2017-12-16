@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public class SharedProviderStore {
+class SharedProviderStore {
 
     private static final String APPLICATIONS_FILTER = "applications.filter";
 
@@ -24,8 +24,8 @@ public class SharedProviderStore {
     private final Map<Long, String> sharedProviderFilters = new ConcurrentHashMap<>();
     private final Map<Long, Object> globalProviders = new ConcurrentHashMap<>();
 
-    private BundleContext context;
-    private Callback callback;
+    private final BundleContext context;
+    private final Callback callback;
 
     SharedProviderStore(final BundleContext context, final Callback callback) {
         this.context = context;
@@ -52,7 +52,7 @@ public class SharedProviderStore {
         sharedApplicationProviders.put(applicationId, new HashSet<>());
 
         // rescan all shared providers
-        sharedProviderFilters.forEach((providerId, filter) -> changedSharedProvider(providerId, filter));
+        sharedProviderFilters.forEach(this::changedSharedProvider);
     }
 
     public void removeApplication(Long applicationId) {
@@ -62,9 +62,7 @@ public class SharedProviderStore {
     public List<Object> getProviders(final Long applicationId) {
         final List<Object> providers = new LinkedList<>();
         providers.addAll(globalProviders.values());
-        sharedApplicationProviders.get(applicationId).forEach(providerId -> {
-            providers.add(sharedProviders.get(providerId));
-        });
+        sharedApplicationProviders.get(applicationId).forEach(providerId -> providers.add(sharedProviders.get(providerId)));
         return providers;
     }
 
@@ -82,7 +80,7 @@ public class SharedProviderStore {
                 if (filter != null) {
                     sharedProviders.put(providerId, provider);
                     sharedProviderFilters.put(providerId, filter);
-                    final Collection<Long> changedApplicationIds = addedSharedProvider(providerId, provider, filter);
+                    final Collection<Long> changedApplicationIds = addedSharedProvider(providerId, filter);
                     callback.restartApplications(changedApplicationIds);
                 } else {
                     addedGlobalProvider(providerId, provider);
@@ -108,7 +106,7 @@ public class SharedProviderStore {
                     // change provider to shared
                     sharedProviderFilters.put(providerId, filter);
                     removeGlobalProvider(providerId);
-                    addedSharedProvider(providerId, provider, filter);
+                    addedSharedProvider(providerId, filter);
                     callback.restartApplications(null);
                 } else if (filter != null) {
                     // check shared provider filter
@@ -140,7 +138,7 @@ public class SharedProviderStore {
         }
     }
 
-    private Collection<Long> addedSharedProvider(final Long providerId, final Object provider, final String filter) {
+    private Collection<Long> addedSharedProvider(final Long providerId, final String filter) {
         final List<Long> changed = new LinkedList<>();
         try {
             final Collection<ServiceReference<Application>> srs = context.getServiceReferences(Application.class, filter);

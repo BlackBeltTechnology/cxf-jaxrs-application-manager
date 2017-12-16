@@ -57,6 +57,6 @@ public class CxfServerManager implements ServerManager {
     @Override
     public void shutdown() {
         final Set<Long> applicationIds = new TreeSet<>(servers.keySet());
-        applicationIds.forEach(applicationId -> stopApplication(applicationId));
+        applicationIds.forEach(this::stopApplication);
     }
 }

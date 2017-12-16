@@ -16,7 +16,7 @@ public class ApplicationManager {
 
     // define target filter in configuration in case of multiple JAX-RS implementations
     @Reference(target = "(" + ServerManager.ALIAS_KEY + "=" + CxfServerManager.ALIAS_VALUE + ")")
-    ServerManager serverManager;
+    private ServerManager serverManager;
 
     private ApplicationStore applicationStore;
     private SharedProviderStore sharedProviderStore;
@@ -65,6 +65,8 @@ public class ApplicationManager {
         if (applicationIds == null && applicationStore != null) {
             // collect providers for all applications
             applicationIds = applicationStore.getApplicationIds();
+        } else if (applicationIds == null) {
+            applicationIds = Collections.emptySet();
         }
 
         applicationIds.forEach(applicationId -> providers.put(applicationId, getSingleApplicationProviders(applicationId)));

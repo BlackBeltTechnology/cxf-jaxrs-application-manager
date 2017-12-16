@@ -3,7 +3,7 @@ package hu.blackbelt.jaxrs;
 import javax.ws.rs.core.Application;
 import java.util.*;
 
-public interface ServerManager {
+interface ServerManager {
     String ALIAS_KEY = "alias";
 
     void startApplication(final Long applicationId, final Application application, final List<Object> providers);

@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class ApplicationStore {
+class ApplicationStore {
 
     private static final String JAXRS_PROVIDER_COMPONENTS = "jaxrs.provider.components";
     private static final String JAXRS_PROVIDER_OBJECTS = "jaxrs.provider.objects";
@@ -29,7 +29,7 @@ public class ApplicationStore {
     private static final String GENERATED_HASHCODE = "__generated.hashCode";
 
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
-    ConfigurationAdmin configAdmin;
+    private ConfigurationAdmin configAdmin;
 
     private ApplicationTracker applicationTracker;
     private ProviderTracker providerTracker;
@@ -41,8 +41,8 @@ public class ApplicationStore {
     private final Map<Long, Map<String, Object>> providerComponents = new HashMap<>();
     private final Map<Long, Map<String, Object>> providerObjects = new HashMap<>();
 
-    private BundleContext context;
-    private Callback callback;
+    private final BundleContext context;
+    private final Callback callback;
 
     ApplicationStore(final BundleContext context, final Callback callback) {
         this.context = context;
@@ -165,7 +165,7 @@ public class ApplicationStore {
             if (providers != null) {
                 providers.forEach((providerName, cfg) -> {
                     try {
-                        final Dictionary properties = prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID));
+                        final Dictionary<String, Object> properties = prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID));
                         if (!Objects.equals(cfg.getProperties().get(GENERATED_HASHCODE), properties.get(GENERATED_HASHCODE))) {
                             cfg.update(properties);
                         }

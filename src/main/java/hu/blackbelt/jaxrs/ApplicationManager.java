@@ -22,11 +22,9 @@ public class ApplicationManager {
     private static final String JAXRS_PROVIDER_OBJECTS = "jaxrs.provider.objects";
     private static final String APPLICATION_ID = "application.id";
 
-    private static final String GENERATED_BY_KEY = "__generated.by";
-    private static final String GENERATED_BY_VALUE = UUID.randomUUID().toString();
+    public static final String GENERATED_BY_KEY = "__generated.by";
+    public static final String GENERATED_BY_VALUE = UUID.randomUUID().toString();
     private static final String GENERATED_HASHCODE = "__generated.hashCode";
-
-    private static final String APPLICATIONS_FILTER = "applications.filter";
 
     // define target filter in configuration in case of multiple JAX-RS implementations
     @Reference(target = "(" + ServerManager.ALIAS_KEY + "=" + CxfServerManager.ALIAS_VALUE + ")")
@@ -35,10 +33,9 @@ public class ApplicationManager {
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
     ConfigurationAdmin configAdmin;
 
-    private BundleContext context;
+    private SharedProviderStore sharedProviderStore;
 
     private ApplicationTracker applicationTracker;
-    private SharedProviderTracker sharedProviderTracker;
     private ProviderTracker providerTracker;
 
     private final Map<Long, Application> applications = new HashMap<>();
@@ -47,31 +44,20 @@ public class ApplicationManager {
     private final Map<Long, Set<String>> missingComponents = new HashMap<>();
     private final Map<Long, Map<String, Object>> providerComponents = new HashMap<>();
     private final Map<Long, Map<String, Object>> providerObjects = new HashMap<>();
-    private final Map<Long, Set<Long>> sharedApplicationProviders = new HashMap<>();
-
-    private final Map<Long, Object> sharedProviders = new HashMap<>();
-    private final Map<Long, String> sharedProviderFilters = new HashMap<>();
-    private final Map<Long, Object> globalProviders = new LinkedHashMap<>();
 
     @Activate
     void start(final BundleContext context) {
-        this.context = context;
         applicationTracker = new ApplicationTracker(context);
-        applicationTracker.open();
-
-        try {
-            sharedProviderTracker = new SharedProviderTracker(context);
-            sharedProviderTracker.open();
-        } catch (InvalidSyntaxException ex) {
-            throw new IllegalStateException("Unable to start shared JAX-RS provider tracker", ex);
-        }
-
+        sharedProviderStore = new SharedProviderStore(context, new SharedProviderCallback());
         try {
             providerTracker = new ProviderTracker(context);
-            providerTracker.open();
         } catch (InvalidSyntaxException ex) {
             throw new IllegalStateException("Unable to start JAX-RS provider tracker", ex);
         }
+
+        sharedProviderStore.start();
+        applicationTracker.open();
+        providerTracker.open();
     }
 
     @Modified
@@ -81,9 +67,9 @@ public class ApplicationManager {
 
     @Deactivate
     void stop() {
-        if (sharedProviderTracker != null) {
-            sharedProviderTracker.close();
-            sharedProviderTracker = null;
+        if (sharedProviderStore != null) {
+            sharedProviderStore.stop();
+            sharedProviderStore = null;
         }
         if (providerTracker != null) {
             providerTracker.close();
@@ -94,7 +80,6 @@ public class ApplicationManager {
             applicationTracker = null;
         }
         serverManager.shutdown();
-        context = null;
     }
 
     private static Dictionary<String, Object> prepareConfiguration(final ServiceReference reference, final Object id) {
@@ -126,7 +111,6 @@ public class ApplicationManager {
             providerComponentConfigurations.put(applicationId, new TreeMap<>());
             providerComponents.put(applicationId, new HashMap<>());
             providerObjects.put(applicationId, new HashMap<>());
-            sharedApplicationProviders.put(applicationId, new HashSet<>());
 
             final Application application = super.addingService(reference);
 
@@ -139,8 +123,7 @@ public class ApplicationManager {
             }
             applications.put(applicationId, application);
 
-            // rescan all shared providers
-            sharedProviderFilters.forEach((providerId, filter) -> changedSharedProvider(providerId, filter));
+            sharedProviderStore.addApplication(applicationId);
 
             // create JAX-RS provider objects
             getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS)).forEach(providerName -> createProviderObject(applicationId, providerName));
@@ -228,7 +211,7 @@ public class ApplicationManager {
             providerComponents.remove(applicationId);
             providerObjects.remove(applicationId);
             providerComponentConfigurations.remove(applicationId);
-            sharedApplicationProviders.remove(applicationId);
+            sharedProviderStore.removeApplication(applicationId);
             missingComponents.remove(applicationId);
         }
     }
@@ -310,78 +293,6 @@ public class ApplicationManager {
         }
     }
 
-    private class SharedProviderTracker extends ServiceTracker<Object, Object> {
-        SharedProviderTracker(final BundleContext context) throws InvalidSyntaxException {
-            super(context, context.createFilter("(" + Constants.OBJECTCLASS + "=*)"), null);
-        }
-
-        @Override
-        public Object addingService(ServiceReference<Object> reference) {
-            final Object provider = super.addingService(reference);
-            if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
-                final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
-                final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
-                if (filter != null) {
-                    sharedProviders.put(providerId, provider);
-                    sharedProviderFilters.put(providerId, filter);
-                    final Collection<Long> changedApplicationIds = addedSharedProvider(providerId, provider, filter);
-                    serverManager.restartApplications(changedApplicationIds, getApplicationProviders(changedApplicationIds));
-                } else {
-                    addedGlobalProvider(providerId, provider);
-                    serverManager.restartAllApplications(getApplicationProviders(null));
-                }
-            }
-            return provider;
-        }
-
-        @Override
-        public void modifiedService(ServiceReference<Object> reference, Object provider) {
-            super.modifiedService(reference, provider);
-            if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
-                final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
-                final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
-                if (filter == null && !globalProviders.containsKey(providerId)) {
-                    // change provider to global
-                    sharedProviderFilters.remove(providerId);
-                    removedSharedProvider(providerId);
-                    addedGlobalProvider(providerId, provider);
-                    serverManager.restartAllApplications(getApplicationProviders(null));
-                } else if (filter != null && globalProviders.containsKey(providerId)) {
-                    // change provider to shared
-                    sharedProviderFilters.put(providerId, filter);
-                    removeGlobalProvider(providerId);
-                    addedSharedProvider(providerId, provider, filter);
-                    serverManager.restartAllApplications(getApplicationProviders(null));
-                } else if (filter != null) {
-                    // check shared provider filter
-                    sharedProviders.put(providerId, provider);
-                    sharedProviderFilters.put(providerId, filter);
-                    final Collection<Long> changedApplicationIds = changedSharedProvider(providerId, filter);
-                    serverManager.restartApplications(changedApplicationIds, getApplicationProviders(changedApplicationIds));
-                }
-            }
-        }
-
-        @Override
-        public void removedService(ServiceReference<Object> reference, Object provider) {
-            super.removedService(reference, provider);
-            if (!Objects.equals(reference.getProperty(GENERATED_BY_KEY), GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
-                final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
-
-                final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
-                if (filter != null) {
-                    sharedProviders.remove(providerId);
-                    sharedProviderFilters.remove(providerId);
-                    final Collection<Long> changedApplicationIds = removedSharedProvider(providerId);
-                    serverManager.restartApplications(changedApplicationIds, getApplicationProviders(changedApplicationIds));
-                } else {
-                    removeGlobalProvider(providerId);
-                    serverManager.restartAllApplications(getApplicationProviders(null));
-                }
-            }
-        }
-    }
-
     private synchronized void addedLocalProvider(final Long applicationId, final String providerName, final Object provider) {
         providerComponents.get(applicationId).put(providerName, provider);
         final Set<String> components = missingComponents.get(applicationId);
@@ -407,80 +318,9 @@ public class ApplicationManager {
         }
     }
 
-    private synchronized Collection<Long> addedSharedProvider(final Long providerId, final Object provider, final String filter) {
-        final List<Long> changed = new LinkedList<>();
-        try {
-            final Collection<ServiceReference<Application>> srs = context.getServiceReferences(Application.class, filter);
-            if (srs != null) {
-                for (final ServiceReference<Application> sr : srs) {
-                    final Long applicationId = (Long) sr.getProperty(Constants.SERVICE_ID);
-                    sharedApplicationProviders.get(applicationId).add(providerId);
-                    changed.add(applicationId);
-                }
-            }
-        } catch (InvalidSyntaxException ex) {
-            log.error("Invalid filter in shared JAX-RS provider, service.id = " + providerId, ex);
-        }
-        return changed;
-    }
-
-    private synchronized Collection<Long> changedSharedProvider(final Long providerId, final String filter) {
-        final List<Long> changed = new LinkedList<>();
-        final Set<Long> filterResult = new HashSet<>();
-        try {
-            final Collection<ServiceReference<Application>> srs = context.getServiceReferences(Application.class, filter);
-            if (srs != null) {
-                for (final ServiceReference<Application> sr : srs) {
-                    final Long applicationId = (Long) sr.getProperty(Constants.SERVICE_ID);
-                    filterResult.add(applicationId);
-                }
-            }
-        } catch (InvalidSyntaxException ex) {
-            log.error("Invalid filter in shared JAX-RS provider, service.id = " + providerId, ex);
-        }
-        for (final Map.Entry<Long, Set<Long>> apps : sharedApplicationProviders.entrySet()) {
-            final Long applicationId = apps.getKey();
-            final Set<Long> providerIds = apps.getValue();
-            if (providerIds.contains(providerId) && !filterResult.contains(applicationId)) {
-                // provider should be removed
-                providerIds.remove(providerId);
-                changed.add(applicationId);
-            } else if (!providerIds.contains(providerId) && filterResult.contains(applicationId)) {
-                // provider should be added
-                providerIds.add(providerId);
-                changed.add(applicationId);
-            }
-        }
-        return changed;
-    }
-
-    private synchronized Collection<Long> removedSharedProvider(final Long providerId) {
-        final List<Long> changed = new LinkedList<>();
-        for (final Map.Entry<Long, Set<Long>> apps : sharedApplicationProviders.entrySet()) {
-            final Long applicationId = apps.getKey();
-            final Set<Long> providerIds = apps.getValue();
-            if (providerIds.contains(providerId)) {
-                providerIds.remove(providerId);
-                changed.add(applicationId);
-            }
-        }
-        return changed;
-    }
-
-    private synchronized void addedGlobalProvider(final Long providerId, final Object provider) {
-        globalProviders.put(providerId, provider);
-    }
-
-    private synchronized void removeGlobalProvider(final Long providerId) {
-        globalProviders.remove(providerId);
-    }
-
     private List<Object> getSingleApplicationProviders(final Long applicationId) {
         final List<Object> providersToAdd = new LinkedList<>();
-        providersToAdd.addAll(globalProviders.values());
-        sharedApplicationProviders.get(applicationId).forEach(providerId -> {
-            providersToAdd.add(sharedProviders.get(providerId));
-        });
+        providersToAdd.addAll(sharedProviderStore.getProviders(applicationId));
         providersToAdd.addAll(providerComponents.get(applicationId).values());
         providersToAdd.addAll(providerObjects.get(applicationId).values());
 
@@ -498,5 +338,17 @@ public class ApplicationManager {
         applicationIds.forEach(applicationId -> providers.put(applicationId, getSingleApplicationProviders(applicationId)));
 
         return providers;
+    }
+
+    class SharedProviderCallback implements SharedProviderStore.ServerCallback {
+
+        @Override
+        public void restartApplications(final Collection<Long> applicationIds) {
+            if (applicationIds != null) {
+                serverManager.restartApplications(applicationIds, getApplicationProviders(applicationIds));
+            } else {
+                serverManager.restartAllApplications(getApplicationProviders(null));
+            }
+        }
     }
 }

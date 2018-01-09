@@ -7,8 +7,6 @@ import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.util.tracker.ServiceTracker;
 
 import javax.ws.rs.ApplicationPath;
@@ -28,7 +26,6 @@ class ApplicationStore {
 
     private static final String GENERATED_HASHCODE = "__generated.hashCode";
 
-    @Reference(policyOption = ReferencePolicyOption.GREEDY)
     private ConfigurationAdmin configAdmin;
 
     private ApplicationTracker applicationTracker;
@@ -44,8 +41,9 @@ class ApplicationStore {
     private final BundleContext context;
     private final Callback callback;
 
-    ApplicationStore(final BundleContext context, final Callback callback) {
+    ApplicationStore(final BundleContext context, final ConfigurationAdmin configAdmin, final Callback callback) {
         this.context = context;
+        this.configAdmin = configAdmin;
         this.callback = callback;
     }
 
@@ -234,7 +232,6 @@ class ApplicationStore {
     }
 
     private void deleteProviderComponent(final Long applicationId, final String providerName) {
-        providerComponents.get(applicationId).remove(providerName);
         final Configuration cfg = providerComponentConfigurations.get(applicationId).remove(providerName);
         if (cfg != null) {
             try {

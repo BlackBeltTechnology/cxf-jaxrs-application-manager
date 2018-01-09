@@ -2,6 +2,7 @@ package hu.blackbelt.jaxrs;
 
 import lombok.extern.slf4j.Slf4j;
 import org.osgi.framework.*;
+import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.service.component.annotations.*;
 
 import javax.ws.rs.core.Application;
@@ -18,13 +19,16 @@ public class ApplicationManager {
     @Reference(target = "(" + ServerManager.ALIAS_KEY + "=" + CxfServerManager.ALIAS_VALUE + ")")
     private ServerManager serverManager;
 
+    @Reference(policyOption = ReferencePolicyOption.GREEDY)
+    private ConfigurationAdmin configAdmin;
+
     private ApplicationStore applicationStore;
     private SharedProviderStore sharedProviderStore;
 
     @Activate
     void start(final BundleContext context) {
         sharedProviderStore = new SharedProviderStore(context, new SharedProviderCallback());
-        applicationStore = new ApplicationStore(context, new ApplicationProviderCallback());
+        applicationStore = new ApplicationStore(context, configAdmin, new ApplicationProviderCallback());
 
         sharedProviderStore.start();
         applicationStore.start();

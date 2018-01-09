@@ -17,20 +17,22 @@ public class CxfServerManager implements ServerManager {
 
     public static final String ALIAS_VALUE = "cxf";
 
+    private static final String APPLICATION_PATH = "applicationPath";
+
     private final Map<Long, Server> servers = new ConcurrentHashMap<>();
     private final Map<Long, Application> applications = new ConcurrentHashMap<>();
-    private final Map<Long, String> addresses = new ConcurrentHashMap<>();
 
     @Override
-    public void startApplication(final Long applicationId, final String applicationPath, final Application application, final List<Object> providers) {
+    public void startApplication(final Long applicationId, final Application application, final List<Object> providers) {
         applications.put(applicationId, application);
 
         final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
         final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
+        final Map<String, Object> properties = application.getProperties();
+        final String applicationPath = properties != null ? (String) properties.get(APPLICATION_PATH) : null;
         if (applicationPath != null) {
             serverFactory.setAddress(applicationPath);
-            addresses.put(applicationId, applicationPath);
         } else if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
             log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
         }
@@ -53,19 +55,16 @@ public class CxfServerManager implements ServerManager {
     }
 
     @Override
-    public void restartApplications(final Collection<Long> applicationIds, final Map<Long, String> applicationPaths, final Map<Long, List<Object>> providers) {
-        if (applicationPaths != null) {
-            addresses.putAll(applicationPaths);
-        }
+    public void restartApplications(final Collection<Long> applicationIds, final Map<Long, List<Object>> providers) {
         applicationIds.forEach(applicationId -> {
             final Application application = stopApplication(applicationId);
-            startApplication(applicationId, addresses.get(applicationId), application, providers.get(applicationId));
+            startApplication(applicationId, application, providers.get(applicationId));
         });
     }
 
     @Override
     public void restartAllApplications(final Map<Long, List<Object>> providers) {
-        restartApplications(new ArrayList<>(servers.keySet()), null, providers);
+        restartApplications(new ArrayList<>(servers.keySet()), providers);
     }
 
     @Override

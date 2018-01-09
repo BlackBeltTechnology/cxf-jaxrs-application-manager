@@ -83,8 +83,7 @@ public class ApplicationManager {
         @Override
         public void restartApplications(final Collection<Long> applicationIds) {
             if (applicationIds != null) {
-                // restart applications because of shared provider changes so no applicationPaths is sent
-                serverManager.restartApplications(applicationIds, null, getApplicationProviders(applicationIds));
+                serverManager.restartApplications(applicationIds, getApplicationProviders(applicationIds));
             } else {
                 serverManager.restartAllApplications(getApplicationProviders(null));
             }
@@ -107,8 +106,8 @@ public class ApplicationManager {
         }
 
         @Override
-        public void startApplication(final Long applicationId, final String applicationPath, final Application application) {
-            serverManager.startApplication(applicationId, applicationPath, application, getSingleApplicationProviders(applicationId));
+        public void startApplication(final Long applicationId, final Application application) {
+            serverManager.startApplication(applicationId, application, getSingleApplicationProviders(applicationId));
         }
 
         @Override
@@ -117,9 +116,9 @@ public class ApplicationManager {
         }
 
         @Override
-        public void restartApplications(final Collection<Long> applicationIds, final Map<Long, String> applicationsPaths) {
+        public void restartApplications(final Collection<Long> applicationIds) {
             if (applicationIds != null) {
-                serverManager.restartApplications(applicationIds, applicationsPaths, getApplicationProviders(applicationIds));
+                serverManager.restartApplications(applicationIds, getApplicationProviders(applicationIds));
             } else {
                 serverManager.restartAllApplications(getApplicationProviders(null));
             }

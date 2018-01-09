@@ -115,7 +115,7 @@ class ApplicationStore {
 
             // start application if JAX-RS provider list is empty
             if (componentProviders.isEmpty()) {
-                callback.startApplication(applicationId, applicationPath, application);
+                callback.startApplication(applicationId, application);
             }
 
             return application;
@@ -152,10 +152,10 @@ class ApplicationStore {
                 newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
                 if (newProviderComponents.isEmpty()) {
                     // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
-                    callback.startApplication(applicationId, applicationPath, application);
+                    callback.startApplication(applicationId, application);
                 }
             } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
-                callback.restartApplications(Collections.singleton(applicationId), applicationPaths);
+                callback.restartApplications(Collections.singleton(applicationId));
             }
 
             final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
@@ -274,7 +274,7 @@ class ApplicationStore {
         if (components != null) {
             components.remove(providerName);
             if (components.isEmpty()) {
-                callback.startApplication(applicationId, applicationPaths.get(applicationId), applications.get(applicationId));
+                callback.startApplication(applicationId, applications.get(applicationId));
             } else {
                 log.debug("Waiting for JAX-RS provider components: " + components);
             }
@@ -316,10 +316,10 @@ class ApplicationStore {
 
         void removeApplication(Long applicationId);
 
-        void startApplication(Long applicationId, String applicationPath, Application application);
+        void startApplication(Long applicationId, Application application);
 
         void stopApplication(Long applicationId);
 
-        void restartApplications(Collection<Long> applicationIds, Map<Long, String> applicationPaths);
+        void restartApplications(Collection<Long> applicationIds);
     }
 }

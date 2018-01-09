@@ -9,7 +9,6 @@ import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.util.tracker.ServiceTracker;
 
-import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.ext.Provider;
 import java.io.IOException;
@@ -23,6 +22,7 @@ class ApplicationStore {
     private static final String JAXRS_PROVIDER_OBJECTS = "jaxrs.provider.objects";
 
     private static final String APPLICATION_ID = "application.id";
+    private static final String APPLICATION_PATH = "applicationPath";
 
     private static final String GENERATED_HASHCODE = "__generated.hashCode";
 
@@ -32,6 +32,7 @@ class ApplicationStore {
     private ProviderTracker providerTracker;
 
     private final Map<Long, Application> applications = new HashMap<>();
+    private final Map<Long, String> applicationPaths = new HashMap<>();
 
     private final Map<Long, Map<String, Configuration>> providerComponentConfigurations = new HashMap<>();
     private final Map<Long, Set<String>> missingComponents = new HashMap<>();
@@ -95,14 +96,12 @@ class ApplicationStore {
 
             final Application application = super.addingService(reference);
 
-            if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
-                log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
-                return application;
-            }
             if (log.isDebugEnabled()) {
                 log.debug("Register JAX-RS application: " + application + "; id = " + applicationId);
             }
             applications.put(applicationId, application);
+            final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
+            applicationPaths.put(applicationId, applicationPath);
 
             callback.addApplication(applicationId);
 
@@ -116,7 +115,7 @@ class ApplicationStore {
 
             // start application if JAX-RS provider list is empty
             if (componentProviders.isEmpty()) {
-                callback.startApplication(applicationId, application);
+                callback.startApplication(applicationId, applicationPath, application);
             }
 
             return application;
@@ -125,10 +124,6 @@ class ApplicationStore {
         @Override
         public void modifiedService(final ServiceReference<Application> reference, final Application application) {
             super.modifiedService(reference, application);
-            if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
-                return;
-            }
-
             final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
 
             final Collection<String> updatedProviderObjects = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS));
@@ -145,7 +140,11 @@ class ApplicationStore {
             newProviderObjects.forEach(providerName -> createProviderObject(applicationId, providerName));
             providerObjectsToDelete.forEach(providerName -> deleteProviderObject(applicationId, providerName));
 
-            if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty()) {
+            final String oldApplicationPath = applicationPaths.get(applicationId);
+            final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
+            applicationPaths.put(applicationId, applicationPath);
+
+            if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty() || !Objects.equals(oldApplicationPath, applicationPath)) {
                 callback.stopApplication(applicationId);
                 missingComponents.get(applicationId).addAll(newProviderComponents);
                 missingComponents.get(applicationId).removeAll(providerComponentsToDelete);
@@ -153,10 +152,10 @@ class ApplicationStore {
                 newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
                 if (newProviderComponents.isEmpty()) {
                     // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
-                    callback.startApplication(applicationId, application);
+                    callback.startApplication(applicationId, applicationPath, application);
                 }
             } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
-                callback.restartApplications(Collections.singleton(applicationId));
+                callback.restartApplications(Collections.singleton(applicationId), applicationPaths);
             }
 
             final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
@@ -177,10 +176,6 @@ class ApplicationStore {
         @Override
         public void removedService(final ServiceReference<Application> reference, final Application application) {
             super.removedService(reference, application);
-            if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
-                return;
-            }
-
             final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
             callback.stopApplication(applicationId);
 
@@ -279,7 +274,7 @@ class ApplicationStore {
         if (components != null) {
             components.remove(providerName);
             if (components.isEmpty()) {
-                callback.startApplication(applicationId, applications.get(applicationId));
+                callback.startApplication(applicationId, applicationPaths.get(applicationId), applications.get(applicationId));
             } else {
                 log.debug("Waiting for JAX-RS provider components: " + components);
             }
@@ -321,10 +316,10 @@ class ApplicationStore {
 
         void removeApplication(Long applicationId);
 
-        void startApplication(Long applicationId, Application application);
+        void startApplication(Long applicationId, String applicationPath, Application application);
 
         void stopApplication(Long applicationId);
 
-        void restartApplications(Collection<Long> applicationIds);
+        void restartApplications(Collection<Long> applicationIds, Map<Long, String> applicationPaths);
     }
 }

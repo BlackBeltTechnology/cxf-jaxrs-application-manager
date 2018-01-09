@@ -6,13 +6,13 @@ import java.util.*;
 interface ServerManager {
     String ALIAS_KEY = "alias";
 
-    void startApplication(final Long applicationId, final Application application, final List<Object> providers);
+    void startApplication(Long applicationId, String applicationPath, Application application, List<Object> providers);
 
-    Application stopApplication(final Long applicationId);
+    Application stopApplication(Long applicationId);
 
-    void restartApplications(final Collection<Long> applicationIds, final Map<Long, List<Object>> providers);
+    void restartApplications(Collection<Long> applicationIds, Map<Long, String> applicationPaths, Map<Long, List<Object>> providers);
 
-    void restartAllApplications(final Map<Long, List<Object>> providers);
+    void restartAllApplications(Map<Long, List<Object>> providers);
 
     void shutdown();
 }

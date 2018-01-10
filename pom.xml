@@ -127,7 +127,9 @@
                         <Implementation-Build>${buildNumber}</Implementation-Build>
                         <_dsannotations>*</_dsannotations>
                         <_metatypeannotations>*</_metatypeannotations>
-                        <Export-Package/>
+                        <Export-Package>
+                            hu.blackbelt.jaxrs.application;version=${project.version}
+                        </Export-Package>
                     </instructions>
                 </configuration>
                 <executions>

@@ -26,6 +26,14 @@ public class CxfServerManager implements ServerManager {
     public void startApplication(final Long applicationId, final Application application, final List<Object> providers) {
         applications.put(applicationId, application);
 
+        final Set<Class<?>> classes = application.getClasses();
+        final Set<Object> singletons = application.getSingletons();
+
+        if ((classes == null || classes.isEmpty()) && (singletons == null || singletons.isEmpty())) {
+            log.warn("No resource classes found, do not start JAX-RS application");
+            return;
+        }
+
         final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
         final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
@@ -43,6 +51,12 @@ public class CxfServerManager implements ServerManager {
         server.start();
 
         servers.put(applicationId, server);
+    }
+
+    @Override
+    public void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
+        applications.put(applicationId, application);
+        restartApplications(Collections.singleton(applicationId), Collections.singletonMap(applicationId, providers));
     }
 
     @Override

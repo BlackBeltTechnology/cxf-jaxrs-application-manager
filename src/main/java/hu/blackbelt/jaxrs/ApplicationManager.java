@@ -123,5 +123,10 @@ public class ApplicationManager {
                 serverManager.restartAllApplications(getApplicationProviders(null));
             }
         }
+
+        @Override
+        public void updateApplicationResources(final Long applicationId, final Application application) {
+            serverManager.updateApplicationResources(applicationId, application, getSingleApplicationProviders(applicationId));
+        }
     }
 }

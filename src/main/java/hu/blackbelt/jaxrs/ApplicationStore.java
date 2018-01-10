@@ -25,6 +25,7 @@ class ApplicationStore {
     private static final String APPLICATION_PATH = "applicationPath";
 
     private static final String GENERATED_HASHCODE = "__generated.hashCode";
+    private static final String CHANGED_RESOURCES_KEY = "__lastChangedResources";
 
     private ConfigurationAdmin configAdmin;
 
@@ -33,6 +34,7 @@ class ApplicationStore {
 
     private final Map<Long, Application> applications = new HashMap<>();
     private final Map<Long, String> applicationPaths = new HashMap<>();
+    private final Map<Long, Object> lastChangedApplicationResources = new HashMap<>();
 
     private final Map<Long, Map<String, Configuration>> providerComponentConfigurations = new HashMap<>();
     private final Map<Long, Set<String>> missingComponents = new HashMap<>();
@@ -144,6 +146,14 @@ class ApplicationStore {
             final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
             applicationPaths.put(applicationId, applicationPath);
 
+            final Object prevChangedResources = lastChangedApplicationResources.get(applicationId);
+            final Map<String, Object> props = application.getProperties();
+            final Object lastChangedResources = props != null ? props.get(CHANGED_RESOURCES_KEY) : null;
+
+            if (log.isDebugEnabled()) {
+                log.debug("Previous JAX-RS application resource changes: " + prevChangedResources + "; last changes: " + lastChangedResources);
+            }
+
             if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty() || !Objects.equals(oldApplicationPath, applicationPath)) {
                 callback.stopApplication(applicationId);
                 missingComponents.get(applicationId).addAll(newProviderComponents);
@@ -156,7 +166,10 @@ class ApplicationStore {
                 }
             } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
                 callback.restartApplications(Collections.singleton(applicationId));
+            } else if (!Objects.equals(prevChangedResources, lastChangedResources)) {
+                callback.updateApplicationResources(applicationId, application);
             }
+            lastChangedApplicationResources.put(applicationId, lastChangedResources);
 
             final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
             if (providers != null) {
@@ -189,6 +202,7 @@ class ApplicationStore {
             providerComponentConfigurations.remove(applicationId);
             callback.removeApplication(applicationId);
             missingComponents.remove(applicationId);
+            lastChangedApplicationResources.remove(applicationId);
         }
     }
 
@@ -312,6 +326,7 @@ class ApplicationStore {
     }
 
     interface Callback {
+
         void addApplication(Long applicationId);
 
         void removeApplication(Long applicationId);
@@ -321,5 +336,7 @@ class ApplicationStore {
         void stopApplication(Long applicationId);
 
         void restartApplications(Collection<Long> applicationIds);
+
+        void updateApplicationResources(Long applicationId, Application application);
     }
 }

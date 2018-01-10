@@ -10,6 +10,8 @@ interface ServerManager {
 
     Application stopApplication(Long applicationId);
 
+    void updateApplicationResources(Long applicationId, Application application, List<Object> providers);
+
     void restartApplications(Collection<Long> applicationIds, Map<Long, List<Object>> providers);
 
     void restartAllApplications(Map<Long, List<Object>> providers);

@@ -1,8 +1,12 @@
 package hu.blackbelt.jaxrs;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.cxf.Bus;
 import org.apache.cxf.endpoint.Server;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 
 import javax.ws.rs.ApplicationPath;
@@ -21,6 +25,19 @@ public class CxfServerManager implements ServerManager {
 
     private final Map<Long, Server> servers = new ConcurrentHashMap<>();
     private final Map<Long, Application> applications = new ConcurrentHashMap<>();
+
+    private BundleContext context;
+
+    private final Map<String, ServiceRegistration<Bus>> busRegistrations = new ConcurrentHashMap<>();
+
+    @Activate
+    void start(final BundleContext context) {
+        this.context = context;
+    }
+
+    void stop() {
+        busRegistrations.forEach((id, sr) -> sr.unregister());
+    }
 
     @Override
     public void startApplication(final Long applicationId, final Application application, final List<Object> providers) {
@@ -46,6 +63,19 @@ public class CxfServerManager implements ServerManager {
         }
 
         serverFactory.setProviders(providers);
+        final Bus bus = serverFactory.getBus();
+        if (bus != null) {
+            final String id = bus.getId();
+            if (log.isDebugEnabled()) {
+                log.debug("Created CXF bus: " + id);
+            }
+            if (id != null && !busRegistrations.containsKey(id)) {
+                final Dictionary<String, Object> props = new Hashtable<>();
+                props.put("id", id);
+                final ServiceRegistration<Bus> busServiceRegistration = context.registerService(Bus.class, bus, props);
+                busRegistrations.put(id, busServiceRegistration);
+            }
+        }
 
         final Server server = serverFactory.create();
         server.start();

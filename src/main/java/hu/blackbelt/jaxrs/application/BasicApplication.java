@@ -40,7 +40,7 @@ public class BasicApplication extends Application {
 
     @Activate
     void start(final BundleContext context, final Map<String, Object> config) {
-        final String pid = (String) config.get(Constants.SERVICE_PID);
+        pid = (String) config.get(Constants.SERVICE_PID);
         log.info("Starting JAX-RS application: " + pid);
 
         final String classesDef = (String) config.get(CLASSES_KEY);

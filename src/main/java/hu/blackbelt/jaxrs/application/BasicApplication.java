@@ -146,13 +146,10 @@ public class BasicApplication extends Application {
 
         ResourceTracker(final BundleContext context, final String filter) throws InvalidSyntaxException {
             super(context, context.createFilter(filter), null);
-            log.error("STARTED TRACKER, filter = " + filter);
         }
 
         @Override
         public Object addingService(final ServiceReference<Object> reference) {
-            log.warn("ADDING SERVICE: " + reference);
-
             final Object resource = super.addingService(reference);
             components.add(resource);
             properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
@@ -164,8 +161,6 @@ public class BasicApplication extends Application {
 
         @Override
         public void removedService(final ServiceReference<Object> reference, final Object resource) {
-            log.warn("REMOVED SERVICE: " + reference);
-
             super.removedService(reference, resource);
             components.remove(resource);
             properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());

@@ -40,7 +40,11 @@ public class CxfServerManager implements ServerManager {
     }
 
     @Override
-    public void startApplication(final Long applicationId, final Application application, final List<Object> providers) {
+    public synchronized void startApplication(final Long applicationId, final Application application, final List<Object> providers) {
+        if (servers.containsKey(applicationId)) {
+            stopApplication(applicationId);
+        }
+
         applications.put(applicationId, application);
 
         final Set<Class<?>> classes = application.getClasses();
@@ -78,22 +82,29 @@ public class CxfServerManager implements ServerManager {
         }
 
         final Server server = serverFactory.create();
+        if (log.isDebugEnabled()) {
+            log.debug("Starting JAX-RS application, service.id = " + applicationId);
+        }
         server.start();
 
         servers.put(applicationId, server);
     }
 
     @Override
-    public void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
+    public synchronized void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
         applications.put(applicationId, application);
         restartApplications(Collections.singleton(applicationId), Collections.singletonMap(applicationId, providers));
     }
 
     @Override
-    public Application stopApplication(final Long applicationId) {
+    public synchronized Application stopApplication(final Long applicationId) {
         final Server server = servers.remove(applicationId);
         if (server != null) {
+            if (log.isDebugEnabled()) {
+                log.debug("Stopping JAX-RS application, service.id = " + applicationId);
+            }
             server.stop();
+            server.destroy();
         }
         return applications.remove(applicationId);
     }

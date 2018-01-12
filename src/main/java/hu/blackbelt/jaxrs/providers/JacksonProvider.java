@@ -14,6 +14,9 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.ext.Provider;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.util.Map;
 
 @Provider
@@ -29,6 +32,15 @@ public class JacksonProvider extends JacksonJaxbJsonProvider {
         configure(SerializationFeature.INDENT_OUTPUT, false);
         configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        // This is hack, because the interface does not work in first time, so we emulate it
+        // http://stackoverflow.com/questions/10860142/appengine-java-jersey-jackson-jaxbannotationintrospector-noclassdeffounderror
+        // But that solution is not correct fpr this problem, because xc cause other problem (reason: JAXB annotations)
+        try {
+            writeTo(1L, Long.class, Long.class, new Annotation[]{}, MediaType.APPLICATION_JSON_TYPE, null, new ByteArrayOutputStream());
+        } catch (IOException ex) {
+            log.warn("Error on initialization of Jackson JSON provider", ex);
+        }
     }
 
     @Activate

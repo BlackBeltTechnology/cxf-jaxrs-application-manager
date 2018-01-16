@@ -8,7 +8,7 @@ import org.osgi.service.component.annotations.*;
 import javax.ws.rs.core.Application;
 import java.util.*;
 
-@Component(immediate = true)
+@Component(immediate = true, service = ApplicationManager.class)
 @Slf4j
 public class ApplicationManager {
 

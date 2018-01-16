@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 class ApplicationStore {
 
     private static final String JAXRS_PROVIDER_COMPONENTS = "jaxrs.provider.components";
-    private static final String JAXRS_PROVIDER_OBJECTS = "jaxrs.provider.objects";
+    private static final String JAXRS_PROVIDER_CLASSES = "jaxrs.provider.classes";
 
     private static final String APPLICATION_ID = "application.id";
     private static final String APPLICATION_PATH = "applicationPath";
@@ -110,7 +110,7 @@ class ApplicationStore {
                 callback.addApplication(applicationId);
 
                 // create JAX-RS provider objects
-                getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS)).forEach(providerName -> createProviderObject(applicationId, providerName));
+                getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_CLASSES)).forEach(providerName -> createProviderObject(applicationId, providerName));
 
                 // create JAX-RS provider components
                 final Collection<String> componentProviders = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
@@ -133,7 +133,7 @@ class ApplicationStore {
             if (application != null) {
                 final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
 
-                final Collection<String> updatedProviderObjects = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS));
+                final Collection<String> updatedProviderObjects = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_CLASSES));
                 final Collection<String> updatedProviderComponents = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
 
                 final Collection<String> existingProviderObjects = providerObjects.get(applicationId).keySet();

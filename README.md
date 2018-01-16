@@ -2,6 +2,56 @@
 
 JAX-RS application manager can be used to track JAX-RS application/resource/provider changes in OSGi environment.
 
+## Overview
+
+`javax.ws.rs.core.Application` OSGi components are exposed automatically by JAX-RS application manager as RESTful web services. Application path is defined by OSGi service property (`applicationPath`) or `@javax.ws.rs.ApplicationPath` annotation.
+A default CXF service is created automatically in Apache Karaf environment and all JAX-RS application are registered in it (see: `RuntimeDelegate.getInstance()`).
+
+There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarative Service that can be used to define JAX-RS application by configuration (i.e. using Configuration Admin) tracking JAX-RS resources defined by OSGi filter.
+
+## Quick start
+
+## Configuration options
+
+* Global JAX-RS providers: JAX-RS providers applied to all applications
+  * **jaxrs.provider._PROVIDER_CLASS_NAME_.**: recommended syntax for provider configuration options
+  * **application.id**: reserved property for providers defined by applications, global providers are not allowed to use it 
+
+* Shared JAX-RS providers: JAX-RS providers applied to a set of applications
+  * **applications.filter**: OSGi filter expression defining JAX-RS applications using the provider.
+  * **jaxrs.provider._PROVIDER_CLASS_NAME_.**: recommended syntax for provider configuration options
+  * **application.id**: reserved property for providers defined by applications, shared providers are not allowed to use it 
+  
+* `hu.blackbelt.jaxrs.application.BasicApplication`
+  * **applicationPath**: JAX-RS application path described above.
+  * **jaxrs.application.name**: optional property that can be used to set application name
+  * **jaxrs.provider.components**: OSGI filter expression defining JAX-RS providers (OSGi components)
+  * **jaxrs.provider.classes**: comma-separated list of JAX-RS provider classes, instances are created by the application
+  * **jaxrs.provider._PROVIDER_CLASS_NAME_._option_**: recommended syntax for provider configuration options so providers can filter their configuration options easily (all properties excluding service., component. and felix. prefixes are passed to provider)
+  * **jaxrs.resource.components**: OSGI filter expression defining JAX-RS singletons resources (OSGi components)
+  * **jaxrs.resource.classes**: comma-separated list of JAX-RS resource classes, instances are created by the application
+
+* JAX-RS resources
+  * **basePath**: this property is recommended for `hu.blackbelt.jaxrs.application.BasicApplication` singletons resources (OSGi components) for binding to JAX-RS applications.
+  
+* prepared JAX-RS providers:
+  * `hu.blackbelt.jaxrs.providers.JacksonProvider`: Jackson provider marshalling/unmarshalling JSON payloads
+    * **jaxrs.provider.JacksonProvider.SerializationFeature._KEY_**: _KEY_ is an enumeration value of `com.fasterxml.jackson.databind.SerializationFeature`, see referenced Java class for details
+    * **jaxrs.provider.JacksonProvider.DeserializationFeature._KEY_**: _KEY_ is an enumeration value of `com.fasterxml.jackson.databind.DeserializationFeature`, see referenced Java class for details
+  * `hu.blackbelt.jaxrs.providers.ISO8601DateParamHandler`: extension supporting `java.util.Date` parameters
+    * **jaxrs.provider.ISO8601DateParamHandler.DATE_FORMAT**: pattern for Date parameters
+
+* `hu.blackbelt.jaxrs.CxfServerManager`
+  * **skipDefaultJsonProviderRegistration**: Skip default JSON provider registration, do not use CXF JSON provider as default message body reader.
+  * **wadlServiceDescriptionAvailable**: WADL service description available.
+  * **interceptors.in.components**: OSGi filter expression defining components used as CXF IN interceptors.
+  * **interceptors.out.components**: OSGi filter expression defining components used as CXF OUT interceptors.
+  * **interceptors.fault.components**: OSGi filter expression defining components used as CXF FAULT(OUT) interceptors.
+
+* CXF configuration file used by Apache Karaf features: `org.apache.cxf.osgi.cfg`
+  * **org.apache.cxf.servlet.context**: context root of default JAX-RS endpoints, applications are created under it (default: /cxf).
+  * **org.apache.cxf.servlet.hide-service-list-page**: WADL descriptors are not available if this option is set to true.
+
 ## Preparing runtime environment
 
 * download and install Apache Karaf (>= 4.1.0) from http://karaf.apache.org/download.html
@@ -11,5 +61,3 @@ feature:install scr cxf-jaxrs cxf-jackson
 ```
 * copy cxf-jaxrs-application-manager-VERSION.jar into KARAF_HOME/deploy
 * create JAX-RS resources (and custom providers optionally)
-
-## Configuration options

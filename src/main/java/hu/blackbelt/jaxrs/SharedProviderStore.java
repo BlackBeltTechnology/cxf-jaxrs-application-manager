@@ -74,7 +74,7 @@ class SharedProviderStore {
         @Override
         public Object addingService(ServiceReference<Object> reference) {
             final Object provider = super.addingService(reference);
-            if (!Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
+            if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
                 final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
                 if (filter != null) {
@@ -93,7 +93,7 @@ class SharedProviderStore {
         @Override
         public void modifiedService(ServiceReference<Object> reference, Object provider) {
             super.modifiedService(reference, provider);
-            if (!Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
+            if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
                 final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
                 if (filter == null && !globalProviders.containsKey(providerId)) {
@@ -121,7 +121,7 @@ class SharedProviderStore {
         @Override
         public void removedService(ServiceReference<Object> reference, Object provider) {
             super.removedService(reference, provider);
-            if (!Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
+            if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
 
                 final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);

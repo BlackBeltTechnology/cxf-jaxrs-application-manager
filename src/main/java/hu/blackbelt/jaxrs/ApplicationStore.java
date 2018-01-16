@@ -92,32 +92,35 @@ class ApplicationStore {
         @Override
         public Application addingService(final ServiceReference<Application> reference) {
             final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
-            providerComponentConfigurations.put(applicationId, new TreeMap<>());
-            providerComponents.put(applicationId, new HashMap<>());
-            providerObjects.put(applicationId, new HashMap<>());
-
             final Application application = super.addingService(reference);
 
-            if (log.isDebugEnabled()) {
-                log.debug("Register JAX-RS application: " + application + "; id = " + applicationId);
-            }
-            applications.put(applicationId, application);
-            final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
-            applicationPaths.put(applicationId, applicationPath);
+            if (application != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Register JAX-RS application: " + application + "; id = " + applicationId);
+                }
 
-            callback.addApplication(applicationId);
+                providerComponentConfigurations.put(applicationId, new TreeMap<>());
+                providerComponents.put(applicationId, new HashMap<>());
+                providerObjects.put(applicationId, new HashMap<>());
 
-            // create JAX-RS provider objects
-            getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS)).forEach(providerName -> createProviderObject(applicationId, providerName));
+                applications.put(applicationId, application);
+                final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
+                applicationPaths.put(applicationId, applicationPath);
 
-            // create JAX-RS provider components
-            final Collection<String> componentProviders = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
-            missingComponents.put(applicationId, new TreeSet<>(componentProviders));
-            componentProviders.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
+                callback.addApplication(applicationId);
 
-            // start application if JAX-RS provider list is empty
-            if (componentProviders.isEmpty()) {
-                callback.startApplication(applicationId, application);
+                // create JAX-RS provider objects
+                getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS)).forEach(providerName -> createProviderObject(applicationId, providerName));
+
+                // create JAX-RS provider components
+                final Collection<String> componentProviders = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
+                missingComponents.put(applicationId, new TreeSet<>(componentProviders));
+                componentProviders.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
+
+                // start application if JAX-RS provider list is empty
+                if (componentProviders.isEmpty()) {
+                    callback.startApplication(applicationId, application);
+                }
             }
 
             return application;
@@ -126,83 +129,88 @@ class ApplicationStore {
         @Override
         public void modifiedService(final ServiceReference<Application> reference, final Application application) {
             super.modifiedService(reference, application);
-            final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
 
-            final Collection<String> updatedProviderObjects = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS));
-            final Collection<String> updatedProviderComponents = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
+            if (application != null) {
+                final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
 
-            final Collection<String> existingProviderObjects = providerObjects.get(applicationId).keySet();
-            final Collection<String> existingProviderComponents = providerComponentConfigurations.get(applicationId).keySet();
+                final Collection<String> updatedProviderObjects = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_OBJECTS));
+                final Collection<String> updatedProviderComponents = getCommaSeparatedList((String) reference.getProperty(JAXRS_PROVIDER_COMPONENTS));
 
-            final Collection<String> newProviderObjects = updatedProviderObjects.stream().filter(o -> !existingProviderObjects.contains(o)).collect(Collectors.toList());
-            final Collection<String> providerObjectsToDelete = existingProviderObjects.stream().filter(o -> !updatedProviderObjects.contains(o)).collect(Collectors.toList());
-            final Collection<String> newProviderComponents = updatedProviderComponents.stream().filter(o -> !existingProviderComponents.contains(o)).collect(Collectors.toList());
-            final Collection<String> providerComponentsToDelete = existingProviderComponents.stream().filter(o -> !updatedProviderComponents.contains(o)).collect(Collectors.toList());
+                final Collection<String> existingProviderObjects = providerObjects.get(applicationId).keySet();
+                final Collection<String> existingProviderComponents = providerComponentConfigurations.get(applicationId).keySet();
 
-            newProviderObjects.forEach(providerName -> createProviderObject(applicationId, providerName));
-            providerObjectsToDelete.forEach(providerName -> deleteProviderObject(applicationId, providerName));
+                final Collection<String> newProviderObjects = updatedProviderObjects.stream().filter(o -> !existingProviderObjects.contains(o)).collect(Collectors.toList());
+                final Collection<String> providerObjectsToDelete = existingProviderObjects.stream().filter(o -> !updatedProviderObjects.contains(o)).collect(Collectors.toList());
+                final Collection<String> newProviderComponents = updatedProviderComponents.stream().filter(o -> !existingProviderComponents.contains(o)).collect(Collectors.toList());
+                final Collection<String> providerComponentsToDelete = existingProviderComponents.stream().filter(o -> !updatedProviderComponents.contains(o)).collect(Collectors.toList());
 
-            final String oldApplicationPath = applicationPaths.get(applicationId);
-            final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
-            applicationPaths.put(applicationId, applicationPath);
+                newProviderObjects.forEach(providerName -> createProviderObject(applicationId, providerName));
+                providerObjectsToDelete.forEach(providerName -> deleteProviderObject(applicationId, providerName));
 
-            final Object prevChangedResources = lastChangedApplicationResources.get(applicationId);
-            final Map<String, Object> props = application.getProperties();
-            final Object lastChangedResources = props != null ? props.get(CHANGED_RESOURCES_KEY) : null;
+                final String oldApplicationPath = applicationPaths.get(applicationId);
+                final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
+                applicationPaths.put(applicationId, applicationPath);
 
-            if (log.isDebugEnabled()) {
-                log.debug("Previous JAX-RS application resource changes: " + prevChangedResources + "; last changes: " + lastChangedResources);
-            }
+                final Object prevChangedResources = lastChangedApplicationResources.get(applicationId);
+                final Map<String, Object> props = application.getProperties();
+                final Object lastChangedResources = props != null ? props.get(CHANGED_RESOURCES_KEY) : null;
 
-            if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty() || !Objects.equals(oldApplicationPath, applicationPath)) {
-                callback.stopApplication(applicationId);
-                missingComponents.get(applicationId).addAll(newProviderComponents);
-                missingComponents.get(applicationId).removeAll(providerComponentsToDelete);
-                providerComponentsToDelete.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
-                newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
-                if (newProviderComponents.isEmpty()) {
-                    // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
-                    callback.startApplication(applicationId, application);
+                if (log.isDebugEnabled()) {
+                    log.debug("Previous JAX-RS application resource changes: " + prevChangedResources + "; last changes: " + lastChangedResources);
                 }
-            } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
-                callback.restartApplications(Collections.singleton(applicationId));
-            } else if (!Objects.equals(prevChangedResources, lastChangedResources)) {
-                callback.updateApplicationResources(applicationId, application);
-            }
-            lastChangedApplicationResources.put(applicationId, lastChangedResources);
 
-            final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
-            if (providers != null) {
-                providers.forEach((providerName, cfg) -> {
-                    try {
-                        final Dictionary<String, Object> properties = prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID));
-                        if (!Objects.equals(cfg.getProperties().get(GENERATED_HASHCODE), properties.get(GENERATED_HASHCODE))) {
-                            cfg.update(properties);
-                        }
-                    } catch (IOException ex) {
-                        log.warn("Unable to update JAX-RS provider configuration", ex);
+                if (!providerComponentsToDelete.isEmpty() || !newProviderComponents.isEmpty() || !Objects.equals(oldApplicationPath, applicationPath)) {
+                    callback.stopApplication(applicationId);
+                    missingComponents.get(applicationId).addAll(newProviderComponents);
+                    missingComponents.get(applicationId).removeAll(providerComponentsToDelete);
+                    providerComponentsToDelete.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
+                    newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
+                    if (newProviderComponents.isEmpty()) {
+                        // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
+                        callback.startApplication(applicationId, application);
                     }
-                });
+                } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
+                    callback.restartApplications(Collections.singleton(applicationId));
+                } else if (!Objects.equals(prevChangedResources, lastChangedResources)) {
+                    callback.updateApplicationResources(applicationId, application);
+                }
+                lastChangedApplicationResources.put(applicationId, lastChangedResources);
+
+                final Map<String, Configuration> providers = providerComponentConfigurations.get(applicationId);
+                if (providers != null) {
+                    providers.forEach((providerName, cfg) -> {
+                        try {
+                            final Dictionary<String, Object> properties = prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID));
+                            if (!Objects.equals(cfg.getProperties().get(GENERATED_HASHCODE), properties.get(GENERATED_HASHCODE))) {
+                                cfg.update(properties);
+                            }
+                        } catch (IOException ex) {
+                            log.warn("Unable to update JAX-RS provider configuration", ex);
+                        }
+                    });
+                }
             }
         }
 
         @Override
         public void removedService(final ServiceReference<Application> reference, final Application application) {
             super.removedService(reference, application);
-            final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
-            callback.stopApplication(applicationId);
+            if (application != null) {
+                final Long applicationId = (Long) reference.getProperty(Constants.SERVICE_ID);
+                callback.stopApplication(applicationId);
 
-            final Map<String, Object> components = providerComponents.get(applicationId);
-            final Collection<String> providerNames = components != null ? components.keySet() : Collections.emptyList();
-            providerNames.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
+                final Map<String, Object> components = providerComponents.get(applicationId);
+                final Collection<String> providerNames = components != null ? components.keySet() : Collections.emptyList();
+                providerNames.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
 
-            applications.remove(applicationId);
-            providerComponents.remove(applicationId);
-            providerObjects.remove(applicationId);
-            providerComponentConfigurations.remove(applicationId);
-            callback.removeApplication(applicationId);
-            missingComponents.remove(applicationId);
-            lastChangedApplicationResources.remove(applicationId);
+                applications.remove(applicationId);
+                providerComponents.remove(applicationId);
+                providerObjects.remove(applicationId);
+                providerComponentConfigurations.remove(applicationId);
+                callback.removeApplication(applicationId);
+                missingComponents.remove(applicationId);
+                lastChangedApplicationResources.remove(applicationId);
+            }
         }
     }
 
@@ -263,7 +271,7 @@ class ApplicationStore {
         @Override
         public Object addingService(final ServiceReference<Object> reference) {
             final Object provider = super.addingService(reference);
-            if (provider.getClass().isAnnotationPresent(Provider.class)) {
+            if (provider != null && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long applicationId = (Long) reference.getProperty(APPLICATION_ID);
                 final String providerName = provider.getClass().getName(); // FIXME - get OSGi name instead of Java object class
                 addedLocalProvider(applicationId, providerName, provider);
@@ -273,7 +281,7 @@ class ApplicationStore {
 
         @Override
         public void removedService(final ServiceReference<Object> reference, final Object provider) {
-            if (provider.getClass().isAnnotationPresent(Provider.class)) {
+            if (provider != null && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long applicationId = (Long) reference.getProperty(APPLICATION_ID);
                 final String providerName = provider.getClass().getName(); // FIXME - get OSGi name instead of Java object class
                 removedLocalProvider(applicationId, providerName);

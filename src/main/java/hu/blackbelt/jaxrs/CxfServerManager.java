@@ -257,16 +257,20 @@ public class CxfServerManager implements ServerManager {
         @Override
         public Interceptor<? extends Message> addingService(final ServiceReference<Interceptor<? extends Message>> reference) {
             final Interceptor<? extends Message> interceptor = super.addingService(reference);
-            interceptors.add(interceptor);
-            restartAllApplications(null);
+            if (interceptor != null) {
+                interceptors.add(interceptor);
+                restartAllApplications(null);
+            }
             return interceptor;
         }
 
         @Override
         public void removedService(final ServiceReference<Interceptor<? extends Message>> reference, final Interceptor<? extends Message> interceptor) {
             super.removedService(reference, interceptor);
-            interceptors.remove(interceptor);
-            restartAllApplications(null);
+            if (interceptor != null) {
+                interceptors.remove(interceptor);
+                restartAllApplications(null);
+            }
         }
     }
 }

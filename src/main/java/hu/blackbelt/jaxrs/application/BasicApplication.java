@@ -151,26 +151,33 @@ public class BasicApplication extends Application {
         @Override
         public Object addingService(final ServiceReference<Object> reference) {
             final Object resource = super.addingService(reference);
-            components.add(resource);
-            properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
+            if (resource != null) {
+                components.add(resource);
+                properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
 
-            changedResources();
+                changedResources();
 
+            }
             return resource;
         }
 
         @Override
         public void removedService(final ServiceReference<Object> reference, final Object resource) {
             super.removedService(reference, resource);
-            components.remove(resource);
-            properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
+            if (resource != null) {
+                components.remove(resource);
+                properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
 
-            changedResources();
+                changedResources();
+            }
         }
     }
 
     private void changedResources() {
         try {
+            if (log.isDebugEnabled()) {
+                log.debug("Changed OSGi component resources in JAX-RS application: " + pid);
+            }
             final Configuration[] cfgs = configAdmin.listConfigurations("(" + Constants.SERVICE_PID + "=" + pid + ")");
             if (cfgs != null) {
                 for (final Configuration cfg : cfgs) {

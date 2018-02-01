@@ -11,6 +11,11 @@ There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarativ
 
 ## Quick start
 
+* prepare Apache Karaf runtime environment described below
+* copy `*.cfg` configuration files from `examples/echo` to `KARAF_HOME/deploy` directory
+* create OSGi bundle (i.e. using `maven-bundle-plugin`) containing [Echo.java](./examples/echo/Echo.java)
+* copy created bundle to `KARAF_HOME/deploy` directory
+
 ## Configuration options
 
 * Global JAX-RS providers: JAX-RS providers applied to all applications

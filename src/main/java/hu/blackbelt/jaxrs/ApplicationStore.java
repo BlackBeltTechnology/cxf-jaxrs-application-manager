@@ -182,7 +182,13 @@ class ApplicationStore {
                         try {
                             final Dictionary<String, Object> properties = prepareConfiguration(reference, reference.getProperty(Constants.SERVICE_ID));
                             if (!Objects.equals(cfg.getProperties().get(GENERATED_HASHCODE), properties.get(GENERATED_HASHCODE))) {
-                                cfg.update(properties);
+                                try {
+                                    cfg.update(properties);
+                                } catch (IllegalStateException ex) {
+                                    if (log.isTraceEnabled()) {
+                                        log.trace("Unable to update JAX-RS provider", ex);
+                                    }
+                                }
                             }
                         } catch (IOException ex) {
                             log.warn("Unable to update JAX-RS provider configuration", ex);
@@ -237,7 +243,13 @@ class ApplicationStore {
 
         try {
             final Configuration cfg = configAdmin.createFactoryConfiguration(providerName, "?");
-            cfg.update(properties);
+            try {
+                cfg.update(properties);
+            } catch (IllegalStateException ex) {
+                if (log.isTraceEnabled()) {
+                    log.trace("Unable to create JAX-RS provider", ex);
+                }
+            }
             providerComponentConfigurations.get(applicationId).put(providerName, cfg);
         } catch (IOException ex) {
             log.error("Unable to create provider component", ex);

@@ -1,10 +1,7 @@
 package hu.blackbelt.jaxrs;
 
 import lombok.extern.slf4j.Slf4j;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.Constants;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.ServiceReference;
+import org.osgi.framework.*;
 import org.osgi.util.tracker.ServiceTracker;
 
 import javax.ws.rs.core.Application;
@@ -73,7 +70,14 @@ class SharedProviderStore {
 
         @Override
         public Object addingService(ServiceReference<Object> reference) {
-            final Object provider = super.addingService(reference);
+            Object provider = null;
+            try {
+                provider = super.addingService(reference);
+            } catch (ServiceException ex) {
+                if (log.isTraceEnabled()) {
+                    log.trace("Unable to add shared provider", ex);
+                }
+            }
             if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
                 final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);

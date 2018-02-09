@@ -184,7 +184,13 @@ public class BasicApplication extends Application {
                     if (cfg != null) {
                         final Dictionary<String, Object> props = cfg.getProperties();
                         props.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
-                        cfg.update(props);
+                        try {
+                            cfg.update(props);
+                        } catch (IllegalStateException ex) {
+                            if (log.isTraceEnabled()) {
+                                log.trace("Unable to update JAX-RS resource", ex);
+                            }
+                        }
                     } else {
                         log.warn("No configuration found for JAX-RS application with PID: " + pid);
                     }

@@ -20,6 +20,7 @@ public class BasicApplication extends Application {
 
     private static final String CLASSES_KEY = "jaxrs.resource.classes";
     private static final String COMPONENTS_KEY = "jaxrs.resource.components";
+    public static final String BUS_ID_KEY = "cxf.busId";
 
     private static final String CHANGED_RESOURCES_KEY = "__lastChangedResources";
 

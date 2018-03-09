@@ -1,16 +1,15 @@
 package hu.blackbelt.jaxrs;
 
+import hu.blackbelt.jaxrs.application.BasicApplication;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cxf.Bus;
+import org.apache.cxf.BusFactory;
 import org.apache.cxf.endpoint.Server;
 import org.apache.cxf.interceptor.Interceptor;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.apache.cxf.message.Message;
 import org.osgi.framework.*;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.*;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.Designate;
@@ -122,7 +121,10 @@ public class CxfServerManager implements ServerManager {
 
     @Deactivate
     void stop() {
-        busRegistrations.forEach((id, sr) -> sr.unregister());
+        busRegistrations.forEach((id, sr) -> {
+            context.getService(sr.getReference()).shutdown(false);
+            sr.unregister();
+        });
 
         if (inInterceptorTracker != null) {
             inInterceptorTracker.close();
@@ -164,6 +166,18 @@ public class CxfServerManager implements ServerManager {
         } else if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
             log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
         }
+        final String busId = properties != null ? (String) properties.get(BasicApplication.BUS_ID_KEY) : null;
+        if (busId != null) {
+            final ServiceRegistration<Bus> busRegistration = busRegistrations.get(busId);
+            final Bus bus;
+            if (busRegistration != null) {
+                bus = context.getService(busRegistration.getReference());
+            } else {
+                bus = BusFactory.newInstance().createBus();
+                bus.setId(busId);
+            }
+            serverFactory.setBus(bus);
+        }
 
         final List<Object> _providers;
         if (providers == null) {
@@ -180,22 +194,7 @@ public class CxfServerManager implements ServerManager {
 
         final Bus bus = serverFactory.getBus();
         if (bus != null) {
-            final String id = bus.getId();
-            if (id != null && !busRegistrations.containsKey(id)) {
-                if (skipDefaultJsonProviderRegistration != null) {
-                    bus.setProperty(SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration);
-                }
-                if (wadlServiceDescriptionAvailable != null) {
-                    bus.setProperty(WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
-                }
-                if (log.isDebugEnabled()) {
-                    log.debug("Created CXF bus: {} [{}={}; {}={}]", id, SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration, WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
-                }
-                final Dictionary<String, Object> props = new Hashtable<>();
-                props.put("id", id);
-                final ServiceRegistration<Bus> busServiceRegistration = context.registerService(Bus.class, bus, props);
-                busRegistrations.put(id, busServiceRegistration);
-            }
+            registerBus(bus);
         }
 
         final Server server = serverFactory.create();
@@ -205,6 +204,25 @@ public class CxfServerManager implements ServerManager {
         server.start();
 
         servers.put(applicationId, server);
+    }
+
+    private void registerBus(final Bus bus) {
+        final String id = bus.getId();
+        if (id != null && !busRegistrations.containsKey(id)) {
+            if (skipDefaultJsonProviderRegistration != null) {
+                bus.setProperty(SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration);
+            }
+            if (wadlServiceDescriptionAvailable != null) {
+                bus.setProperty(WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("Created CXF bus: {} [{}={}; {}={}]", id, SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration, WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
+            }
+            final Dictionary<String, Object> props = new Hashtable<>();
+            props.put("id", id);
+            final ServiceRegistration<Bus> busServiceRegistration = context.registerService(Bus.class, bus, props);
+            busRegistrations.put(id, busServiceRegistration);
+        }
     }
 
     @Override

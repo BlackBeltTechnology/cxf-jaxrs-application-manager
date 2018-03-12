@@ -1,5 +1,6 @@
 package hu.blackbelt.jaxrs.application;
 
+import hu.blackbelt.jaxrs.CxfContext;
 import lombok.extern.slf4j.Slf4j;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -14,19 +15,23 @@ import javax.ws.rs.core.Application;
 import java.io.IOException;
 import java.util.*;
 
-@Component(immediate = true, service = Application.class, configurationPolicy = ConfigurationPolicy.REQUIRE)
+@Component(immediate = true, service = Application.class, configurationPolicy = ConfigurationPolicy.REQUIRE, reference = {
+        @Reference(name = "cxf.context", policyOption = ReferencePolicyOption.GREEDY, service = CxfContext.class, bind = "setContext", unbind = "unsetContext", updated = "updateContext")
+})
 @Slf4j
 public class BasicApplication extends Application {
 
     private static final String CLASSES_KEY = "jaxrs.resource.classes";
     private static final String COMPONENTS_KEY = "jaxrs.resource.components";
 
+    public static final String CONTEXT_PROPERTY_KEY = "cxf.context";
+
     private static final String CHANGED_RESOURCES_KEY = "__lastChangedResources";
 
     private final Set<Class<?>> classes = new LinkedHashSet<>();
     private final Set<Object> components = new LinkedHashSet<>();
 
-    private Map<String, Object> properties = Collections.emptyMap();
+    private final Map<String, Object> properties = new TreeMap<>();
 
     private ResourceTracker tracker;
 
@@ -38,6 +43,11 @@ public class BasicApplication extends Application {
 
     private String pid;
 
+    private CxfContext cxfContext;
+    private Object lastChangedContext;
+
+    private Object lastChangedResources;
+
     @Activate
     void start(final BundleContext context, final Map<String, Object> config) {
         pid = (String) config.get(Constants.SERVICE_PID);
@@ -45,7 +55,7 @@ public class BasicApplication extends Application {
 
         final String classesDef = (String) config.get(CLASSES_KEY);
         this.classesDef = classesDef;
-        properties = new TreeMap<>(config);
+        properties.putAll(config);
 
         final String filter = (String) config.get(COMPONENTS_KEY);
 
@@ -56,6 +66,8 @@ public class BasicApplication extends Application {
         if (filter != null) {
             startResourceTracker(context, filter);
         }
+
+        properties.put(CONTEXT_PROPERTY_KEY, this.cxfContext);
     }
 
     @Modified
@@ -64,7 +76,6 @@ public class BasicApplication extends Application {
 
         final String classesDef = (String) config.get(CLASSES_KEY);
         final String filter = (String) config.get(COMPONENTS_KEY);
-        properties = new TreeMap<>(config);
 
         boolean changedResources = false;
 
@@ -86,8 +97,14 @@ public class BasicApplication extends Application {
             changedResources = true;
         }
 
+        final Object lastChanged = config.get(CHANGED_RESOURCES_KEY);
+        if (!Objects.equals(lastChanged, lastChangedResources)) {
+            lastChangedResources = lastChanged;
+            changedResources = true;
+        }
+
         if (changedResources) {
-            properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
+            properties.put(CHANGED_RESOURCES_KEY, lastChanged);
         }
     }
 
@@ -104,6 +121,26 @@ public class BasicApplication extends Application {
         components.clear();
         classesDef = null;
         componentFilter = null;
+        properties.clear();
+    }
+
+    void setContext(final CxfContext cxfContext, final Map<String, Object> props) {
+        this.cxfContext = cxfContext;
+        lastChangedContext = props.get(CxfContext.LAST_CHANGED_CONFIGURATION);
+    }
+
+    void updateContext(final CxfContext cxfContext, final Map<String, Object> props) {
+        this.cxfContext = cxfContext;
+
+        final Object newLastChangedContext = props.get(CxfContext.LAST_CHANGED_CONFIGURATION);
+        if (!Objects.equals(lastChangedContext, newLastChangedContext)) {
+            lastChangedContext = newLastChangedContext;
+            changedResources();
+        }
+    }
+
+    void unsetContext() {
+        this.cxfContext = null;
     }
 
     private void startResourceTracker(final BundleContext context, final String filter) {
@@ -153,8 +190,6 @@ public class BasicApplication extends Application {
             final Object resource = super.addingService(reference);
             if (resource != null) {
                 components.add(resource);
-                properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
-
                 changedResources();
 
             }
@@ -166,8 +201,6 @@ public class BasicApplication extends Application {
             super.removedService(reference, resource);
             if (resource != null) {
                 components.remove(resource);
-                properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
-
                 changedResources();
             }
         }
@@ -175,15 +208,14 @@ public class BasicApplication extends Application {
 
     private void changedResources() {
         try {
-            if (log.isDebugEnabled()) {
-                log.debug("Changed OSGi component resources in JAX-RS application: " + pid);
-            }
+            log.debug("Changed OSGi component resources in JAX-RS application: {}", pid);
             final Configuration[] cfgs = configAdmin.listConfigurations("(" + Constants.SERVICE_PID + "=" + pid + ")");
+            final Object lastChangedResources = System.currentTimeMillis();
             if (cfgs != null) {
                 for (final Configuration cfg : cfgs) {
                     if (cfg != null) {
                         final Dictionary<String, Object> props = cfg.getProperties();
-                        props.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
+                        props.put(CHANGED_RESOURCES_KEY, lastChangedResources);
                         try {
                             cfg.update(props);
                         } catch (IllegalStateException ex) {

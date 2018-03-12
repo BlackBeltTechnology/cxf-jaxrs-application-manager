@@ -84,7 +84,7 @@ public class CxfContext {
         Objects.requireNonNull(id, "Property 'busId' is not set");
 
         inInterceptorsFilter = config.interceptors_in_components();
-        if (inInterceptorsFilter != null) {
+        if (inInterceptorsFilter != null && !inInterceptorsFilter.trim().isEmpty()) {
             try {
                 inInterceptorTracker = new InterceptorTracker(context, inInterceptorsFilter, inInterceptors);
                 inInterceptorTracker.open();
@@ -93,7 +93,7 @@ public class CxfContext {
             }
         }
         outInterceptorsFilter = config.interceptors_out_components();
-        if (outInterceptorsFilter != null) {
+        if (outInterceptorsFilter != null && !outInterceptorsFilter.trim().isEmpty()) {
             try {
                 outInterceptorTracker = new InterceptorTracker(context, outInterceptorsFilter, outInterceptors);
                 outInterceptorTracker.open();
@@ -102,7 +102,7 @@ public class CxfContext {
             }
         }
         faultInterceptorsFilter = config.interceptors_fault_components();
-        if (faultInterceptorsFilter != null) {
+        if (faultInterceptorsFilter != null && !faultInterceptorsFilter.trim().isEmpty()) {
             try {
                 faultInterceptorTracker = new InterceptorTracker(context, faultInterceptorsFilter, faultInterceptors);
                 faultInterceptorTracker.open();
@@ -122,7 +122,7 @@ public class CxfContext {
     }
 
     @Modified
-    void update(final Config config) {
+    void update(final BundleContext context, final Config config) {
         final boolean newSkipDefaultJsonProviderRegistration = config.skipDefaultJsonProviderRegistration();
         final boolean newWadlServiceDescriptionAvailable = config.wadlServiceDescriptionAvailable();
 
@@ -136,6 +136,61 @@ public class CxfContext {
             wadlServiceDescriptionAvailable = newWadlServiceDescriptionAvailable;
             bus.setProperty(WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
             updated = true;
+        }
+
+        final String newInInterceptorsFilter = config.interceptors_in_components();
+        if (!Objects.equals(inInterceptorsFilter, newInInterceptorsFilter)) {
+            log.debug("IN interceptors have been changed");
+            inInterceptorsFilter = newInInterceptorsFilter;
+            updated = true;
+            if (inInterceptorTracker != null) {
+                inInterceptorTracker.close();
+                inInterceptorTracker = null;
+            }
+            if (inInterceptorsFilter != null && !inInterceptorsFilter.trim().isEmpty()) {
+                try {
+                    inInterceptorTracker = new InterceptorTracker(context, inInterceptorsFilter, inInterceptors);
+                    inInterceptorTracker.open();
+                } catch (InvalidSyntaxException ex) {
+                    log.error("Invalid IN interceptor filter, ignore it", ex);
+                }
+            }
+        }
+        final String newOutInterceptorsFilter = config.interceptors_out_components();
+        if (!Objects.equals(outInterceptorsFilter, newOutInterceptorsFilter)) {
+            log.debug("OUT interceptors have been changed");
+            outInterceptorsFilter = newOutInterceptorsFilter;
+            updated = true;
+            if (outInterceptorTracker != null) {
+                outInterceptorTracker.close();
+                outInterceptorTracker = null;
+            }
+            if (outInterceptorsFilter != null && !outInterceptorsFilter.trim().isEmpty()) {
+                try {
+                    outInterceptorTracker = new InterceptorTracker(context, outInterceptorsFilter, outInterceptors);
+                    outInterceptorTracker.open();
+                } catch (InvalidSyntaxException ex) {
+                    log.error("Invalid OUT interceptor filter, ignore it", ex);
+                }
+            }
+        }
+        final String newFaultInterceptorsFilter = config.interceptors_fault_components();
+        if (!Objects.equals(faultInterceptorsFilter, newFaultInterceptorsFilter)) {
+            log.debug("FAULT interceptors have been changed");
+            faultInterceptorsFilter = newFaultInterceptorsFilter;
+            updated = true;
+            if (faultInterceptorTracker != null) {
+                faultInterceptorTracker.close();
+                faultInterceptorTracker = null;
+            }
+            if (faultInterceptorsFilter != null && !faultInterceptorsFilter.trim().isEmpty()) {
+                try {
+                    faultInterceptorTracker = new InterceptorTracker(context, faultInterceptorsFilter, faultInterceptors);
+                    faultInterceptorTracker.open();
+                } catch (InvalidSyntaxException ex) {
+                    log.error("Invalid FAULT interceptor filter, ignore it", ex);
+                }
+            }
         }
 
         if (updated) {

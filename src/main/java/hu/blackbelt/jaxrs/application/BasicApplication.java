@@ -46,6 +46,8 @@ public class BasicApplication extends Application {
     private CxfContext cxfContext;
     private Object lastChangedContext;
 
+    private Object lastChangedResources;
+
     @Activate
     void start(final BundleContext context, final Map<String, Object> config) {
         pid = (String) config.get(Constants.SERVICE_PID);
@@ -95,8 +97,14 @@ public class BasicApplication extends Application {
             changedResources = true;
         }
 
+        final Object lastChanged = config.get(CHANGED_RESOURCES_KEY);
+        if (!Objects.equals(lastChanged, lastChangedResources)) {
+            lastChangedResources = lastChanged;
+            changedResources = true;
+        }
+
         if (changedResources) {
-            properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
+            properties.put(CHANGED_RESOURCES_KEY, lastChanged);
         }
     }
 
@@ -125,7 +133,7 @@ public class BasicApplication extends Application {
         this.cxfContext = cxfContext;
 
         final Object newLastChangedContext = props.get(CxfContext.LAST_CHANGED_CONFIGURATION);
-        if (Objects.equals(lastChangedContext, newLastChangedContext)) {
+        if (!Objects.equals(lastChangedContext, newLastChangedContext)) {
             lastChangedContext = newLastChangedContext;
             changedResources();
         }
@@ -182,8 +190,6 @@ public class BasicApplication extends Application {
             final Object resource = super.addingService(reference);
             if (resource != null) {
                 components.add(resource);
-                properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
-
                 changedResources();
 
             }
@@ -195,8 +201,6 @@ public class BasicApplication extends Application {
             super.removedService(reference, resource);
             if (resource != null) {
                 components.remove(resource);
-                properties.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
-
                 changedResources();
             }
         }
@@ -204,15 +208,14 @@ public class BasicApplication extends Application {
 
     private void changedResources() {
         try {
-            if (log.isDebugEnabled()) {
-                log.debug("Changed OSGi component resources in JAX-RS application: " + pid);
-            }
+            log.debug("Changed OSGi component resources in JAX-RS application: {}", pid);
             final Configuration[] cfgs = configAdmin.listConfigurations("(" + Constants.SERVICE_PID + "=" + pid + ")");
+            final Object lastChangedResources = System.currentTimeMillis();
             if (cfgs != null) {
                 for (final Configuration cfg : cfgs) {
                     if (cfg != null) {
                         final Dictionary<String, Object> props = cfg.getProperties();
-                        props.put(CHANGED_RESOURCES_KEY, System.currentTimeMillis());
+                        props.put(CHANGED_RESOURCES_KEY, lastChangedResources);
                         try {
                             cfg.update(props);
                         } catch (IllegalStateException ex) {

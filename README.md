@@ -12,7 +12,7 @@ There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarativ
 ## Quick start
 
 * prepare Apache Karaf runtime environment described below
-* copy `*.cfg` configuration files from `examples/echo` to `KARAF_HOME/deploy` directory
+* copy `*.cfg` configuration files from `examples/echo` to `KARAF_HOME/deploy` directory (note: CxfContext and CxfServerManager configurations are optinal, ensure that application has no reference to CXF context if it is not defined)
 * create OSGi bundle (i.e. using `maven-bundle-plugin`) containing [Echo.java](./examples/echo/Echo.java)
 * copy created bundle to `KARAF_HOME/deploy` directory
 

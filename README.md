@@ -30,11 +30,20 @@ There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarativ
 * `hu.blackbelt.jaxrs.application.BasicApplication`
   * **applicationPath**: JAX-RS application path described above.
   * **jaxrs.application.name**: optional property that can be used to set application name
-  * **jaxrs.provider.components**: OSGI filter expression defining JAX-RS providers (OSGi components)
+  * **jaxrs.provider.components**: OSGi filter expression defining JAX-RS providers (OSGi components)
   * **jaxrs.provider.classes**: comma-separated list of JAX-RS provider classes, instances are created by the application
   * **jaxrs.provider._PROVIDER_CLASS_NAME_._option_**: recommended syntax for provider configuration options so providers can filter their configuration options easily (all properties excluding service., component. and felix. prefixes are passed to provider)
-  * **jaxrs.resource.components**: OSGI filter expression defining JAX-RS singletons resources (OSGi components)
+  * **jaxrs.resource.components**: OSGi filter expression defining JAX-RS singletons resources (OSGi components)
   * **jaxrs.resource.classes**: comma-separated list of JAX-RS resource classes, instances are created by the application
+  * **cxf.context.target**: OSGi filter expression define CXF context (bus, interceptors) of the application
+
+* `hu.blackbelt.jaxrs.CxfContext`
+  * **busId**: CXF bus ID
+  * **skipDefaultJsonProviderRegistration**: Skip default JSON provider registration, do not use CXF JSON provider as default message body reader.
+  * **wadlServiceDescriptionAvailable**: WADL service description available.
+  * **interceptors.in.components**: OSGi filter expression defining components used as CXF IN interceptors.
+  * **interceptors.out.components**: OSGi filter expression defining components used as CXF OUT interceptors.
+  * **interceptors.fault.components**: OSGi filter expression defining components used as CXF FAULT(OUT) interceptors.
 
 * JAX-RS resources
   * **basePath**: this property is recommended for `hu.blackbelt.jaxrs.application.BasicApplication` singletons resources (OSGi components) for binding to JAX-RS applications.
@@ -46,12 +55,12 @@ There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarativ
   * `hu.blackbelt.jaxrs.providers.ISO8601DateParamHandler`: extension supporting `java.util.Date` parameters
     * **jaxrs.provider.ISO8601DateParamHandler.DATE_FORMAT**: pattern for Date parameters
 
-* `hu.blackbelt.jaxrs.CxfServerManager`
-  * **skipDefaultJsonProviderRegistration**: Skip default JSON provider registration, do not use CXF JSON provider as default message body reader.
-  * **wadlServiceDescriptionAvailable**: WADL service description available.
-  * **interceptors.in.components**: OSGi filter expression defining components used as CXF IN interceptors.
-  * **interceptors.out.components**: OSGi filter expression defining components used as CXF OUT interceptors.
-  * **interceptors.fault.components**: OSGi filter expression defining components used as CXF FAULT(OUT) interceptors.
+* `hu.blackbelt.jaxrs.CxfServerManager` (singleton)
+  * **skipDefaultJsonProviderRegistration**: Default CXF bus configuration: skip default JSON provider registration, do not use CXF JSON provider as default message body reader.
+  * **wadlServiceDescriptionAvailable**: Default CXF bus configuration: WADL service description available.
+  * **interceptors.in.components**: Default CXF bus configuration: OSGi filter expression defining components used as CXF IN interceptors.
+  * **interceptors.out.components**: Default CXF bus configuration: OSGi filter expression defining components used as CXF OUT interceptors.
+  * **interceptors.fault.components**: Default CXF bus configuration: OSGi filter expression defining components used as CXF FAULT(OUT) interceptors.
 
 * CXF configuration file used by Apache Karaf features: `org.apache.cxf.osgi.cfg`
   * **org.apache.cxf.servlet.context**: context root of default JAX-RS endpoints, applications are created under it (default: /cxf).

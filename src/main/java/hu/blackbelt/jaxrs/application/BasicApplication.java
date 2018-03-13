@@ -139,7 +139,7 @@ public class BasicApplication extends Application {
         }
     }
 
-    void unsetContext() {
+    void unsetContext(final CxfContext cxfContext) {
         this.cxfContext = null;
     }
 

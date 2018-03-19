@@ -1,25 +1,22 @@
 package hu.blackbelt.jaxrs;
 
+import hu.blackbelt.jaxrs.application.BasicApplication;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.cxf.Bus;
 import org.apache.cxf.endpoint.Server;
-import org.apache.cxf.interceptor.Interceptor;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
-import org.apache.cxf.message.Message;
 import org.osgi.framework.*;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.cm.Configuration;
+import org.osgi.service.cm.ConfigurationAdmin;
+import org.osgi.service.component.annotations.*;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.Designate;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
-import org.osgi.util.tracker.ServiceTracker;
 
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.ext.RuntimeDelegate;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -32,10 +29,10 @@ public class CxfServerManager implements ServerManager {
     public @interface Config {
 
         @AttributeDefinition(required = false, name = "Skip default JSON provider registration", description = "Do not use CXF JSON provider as default message body reader.", type = AttributeType.BOOLEAN)
-        boolean skipDefaultJsonProviderRegistration() default SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_DEFAULT;
+        boolean skipDefaultJsonProviderRegistration();
 
         @AttributeDefinition(required = false, name = "WADL service description available", type = AttributeType.BOOLEAN)
-        boolean wadlServiceDescriptionAvailable() default WADL_SERVICE_DESCRIPTION_AVAILABLE_DEFAULT;
+        boolean wadlServiceDescriptionAvailable();
 
         @AttributeDefinition(required = false, name = "IN interceptors filter expression")
         String interceptors_in_components();
@@ -47,26 +44,6 @@ public class CxfServerManager implements ServerManager {
         String interceptors_fault_components();
     }
 
-    private static final boolean SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_DEFAULT = true;
-    private static final String SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY = "skip.default.json.provider.registration";
-    private Boolean skipDefaultJsonProviderRegistration;
-
-    private static final boolean WADL_SERVICE_DESCRIPTION_AVAILABLE_DEFAULT = true;
-    private static final String WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY = "wadl.service.description.available";
-    private Boolean wadlServiceDescriptionAvailable;
-
-    private String inInterceptorsFilter;
-    private String outInterceptorsFilter;
-    private String faultInterceptorsFilter;
-
-    private List<Interceptor<? extends Message>> inInterceptors = new LinkedList<>();
-    private List<Interceptor<? extends Message>> outInterceptors = new LinkedList<>();
-    private List<Interceptor<? extends Message>> faultInterceptors = new LinkedList<>();
-
-    private InterceptorTracker inInterceptorTracker;
-    private InterceptorTracker outInterceptorTracker;
-    private InterceptorTracker faultInterceptorTracker;
-
     public static final String ALIAS_VALUE = "cxf";
 
     private static final String APPLICATION_PATH = "applicationPath";
@@ -75,66 +52,80 @@ public class CxfServerManager implements ServerManager {
     private final Map<Long, Application> applications = new ConcurrentHashMap<>();
     private final Map<Long, List<Object>> applicationProviders = new ConcurrentHashMap<>();
 
-    private BundleContext context;
+    @Reference(policyOption = ReferencePolicyOption.GREEDY)
+    private ConfigurationAdmin configAdmin;
 
-    private final Map<String, ServiceRegistration<Bus>> busRegistrations = new ConcurrentHashMap<>();
+    private static final String DEFAULT_BUS_ID = "DEFAULT_CXF_BUS_FOR_JAXRS_APPLICATIONS";
+    private Configuration cxfContextConfig;
 
     @Activate
-    void start(final BundleContext context, final Config config) {
-        this.context = context;
-
-        inInterceptorsFilter = config.interceptors_in_components();
-        if (inInterceptorsFilter != null) {
-            try {
-                inInterceptorTracker = new InterceptorTracker(context, inInterceptorsFilter, inInterceptors);
-                inInterceptorTracker.open();
-            } catch (InvalidSyntaxException ex) {
-                log.error("Invalid IN interceptor filter, ignore it", ex);
-            }
+    void start(final Config config) {
+        try {
+            cxfContextConfig = configAdmin.createFactoryConfiguration(CxfContext.class.getName(), "?");
+            final Dictionary<String, Object> properties = setProperties(config, new Hashtable<>());
+            properties.put("busId", DEFAULT_BUS_ID);
+            cxfContextConfig.update(properties);
+        } catch (IOException ex) {
+            log.error("Unable to create default CXF bus");
         }
-        outInterceptorsFilter = config.interceptors_out_components();
-        if (outInterceptorsFilter != null) {
-            try {
-                outInterceptorTracker = new InterceptorTracker(context, outInterceptorsFilter, outInterceptors);
-                outInterceptorTracker.open();
-            } catch (InvalidSyntaxException ex) {
-                log.error("Invalid OUT interceptor filter, ignore it", ex);
-            }
-        }
-        faultInterceptorsFilter = config.interceptors_fault_components();
-        if (faultInterceptorsFilter != null) {
-            try {
-                faultInterceptorTracker = new InterceptorTracker(context, faultInterceptorsFilter, faultInterceptors);
-                faultInterceptorTracker.open();
-            } catch (InvalidSyntaxException ex) {
-                log.error("Invalid FAULT interceptor filter, ignore it", ex);
-            }
-        }
-
-        skipDefaultJsonProviderRegistration = config.skipDefaultJsonProviderRegistration();
-        wadlServiceDescriptionAvailable = config.wadlServiceDescriptionAvailable();
     }
 
     @Modified
     void update(final Config config) {
-        // TODO - reconfigure trackers on filter changes
+        try {
+            cxfContextConfig.update(setProperties(config, cxfContextConfig.getProperties()));
+        } catch (IOException ex) {
+            log.error("Unable to update default CXF bus");
+        }
+    }
+
+    private static Dictionary<String, Object> setProperties(final Config config, final Dictionary<String, Object> properties) {
+        properties.put("skipDefaultJsonProviderRegistration", config.skipDefaultJsonProviderRegistration());
+        properties.put("wadlServiceDescriptionAvailable", config.wadlServiceDescriptionAvailable());
+        if (config.interceptors_in_components() != null) {
+            properties.put("interceptors.in.components", config.interceptors_in_components());
+        } else {
+            properties.remove("interceptors.in.components");
+        }
+        if (config.interceptors_out_components() != null) {
+            properties.put("interceptors.out.components", config.interceptors_out_components());
+        } else {
+            properties.remove("interceptors.out.components");
+        }
+        if (config.interceptors_fault_components() != null) {
+            properties.put("interceptors.fault.components", config.interceptors_fault_components());
+        } else {
+            properties.remove("interceptors.fault.components");
+        }
+        return properties;
     }
 
     @Deactivate
     void stop() {
-        busRegistrations.forEach((id, sr) -> sr.unregister());
+        unregister("(&(service.factoryPid=" + CxfContext.class.getName() + ")(busId=" + DEFAULT_BUS_ID + "))");
+        cxfContextConfig = null;
+    }
 
-        if (inInterceptorTracker != null) {
-            inInterceptorTracker.close();
-            inInterceptorTracker = null;
-        }
-        if (outInterceptorTracker != null) {
-            outInterceptorTracker.close();
-            outInterceptorTracker = null;
-        }
-        if (faultInterceptorTracker != null) {
-            faultInterceptorTracker.close();
-            faultInterceptorTracker = null;
+    private void unregister(final String filter) {
+        try {
+            final Configuration[] cfgsToDelete = configAdmin.listConfigurations(filter);
+            if (cfgsToDelete != null) {
+                for (final Configuration c : cfgsToDelete) {
+                    try {
+                        c.delete();
+                    } catch (IOException ex2) {
+                        log.error("Unable to delete service: " + filter, ex2);
+                    }
+                }
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("No configuration found: " + filter);
+                }
+            }
+        } catch (InvalidSyntaxException ex) {
+            log.error("Invalid filter expression: " + filter, ex);
+        } catch (IOException ex) {
+            log.error("Unable to list services: " + filter, ex);
         }
     }
 
@@ -164,6 +155,20 @@ public class CxfServerManager implements ServerManager {
         } else if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
             log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
         }
+        final CxfContext cxfContext = properties != null ? (CxfContext) properties.get(BasicApplication.CONTEXT_PROPERTY_KEY) : null;
+        if (cxfContext != null) {
+            serverFactory.setBus(cxfContext.getBus());
+
+            if (log.isTraceEnabled()) {
+                log.trace("IN interceptors: {}", cxfContext.getInInterceptors());
+                log.trace("OUT interceptors: {}", cxfContext.getOutInterceptors());
+                log.trace("FAULT interceptors: {}", cxfContext.getFaultInterceptors());
+            }
+
+            serverFactory.setInInterceptors(cxfContext.getInInterceptors());
+            serverFactory.setOutInterceptors(cxfContext.getOutInterceptors());
+            serverFactory.setOutFaultInterceptors(cxfContext.getFaultInterceptors());
+        }
 
         final List<Object> _providers;
         if (providers == null) {
@@ -173,30 +178,6 @@ public class CxfServerManager implements ServerManager {
         }
         serverFactory.setProviders(_providers);
         applicationProviders.put(applicationId, _providers);
-
-        serverFactory.setInInterceptors(inInterceptors);
-        serverFactory.setOutInterceptors(outInterceptors);
-        serverFactory.setOutFaultInterceptors(faultInterceptors);
-
-        final Bus bus = serverFactory.getBus();
-        if (bus != null) {
-            final String id = bus.getId();
-            if (id != null && !busRegistrations.containsKey(id)) {
-                if (skipDefaultJsonProviderRegistration != null) {
-                    bus.setProperty(SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration);
-                }
-                if (wadlServiceDescriptionAvailable != null) {
-                    bus.setProperty(WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
-                }
-                if (log.isDebugEnabled()) {
-                    log.debug("Created CXF bus: {} [{}={}; {}={}]", id, SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration, WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
-                }
-                final Dictionary<String, Object> props = new Hashtable<>();
-                props.put("id", id);
-                final ServiceRegistration<Bus> busServiceRegistration = context.registerService(Bus.class, bus, props);
-                busRegistrations.put(id, busServiceRegistration);
-            }
-        }
 
         final Server server = serverFactory.create();
         if (log.isDebugEnabled()) {
@@ -209,12 +190,14 @@ public class CxfServerManager implements ServerManager {
 
     @Override
     public synchronized void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
+        log.trace("UPDATE JAX-RS application resources: " + applicationId);
         applications.put(applicationId, application);
         restartApplications(Collections.singleton(applicationId), Collections.singletonMap(applicationId, providers));
     }
 
     @Override
     public synchronized Application stopApplication(final Long applicationId) {
+        log.trace("STOP JAX-RS application: " + applicationId);
         final Server server = servers.remove(applicationId);
         if (server != null) {
             if (log.isDebugEnabled()) {
@@ -229,6 +212,7 @@ public class CxfServerManager implements ServerManager {
     @Override
     public void restartApplications(final Collection<Long> applicationIds, final Map<Long, List<Object>> providers) {
         applicationIds.forEach(applicationId -> {
+            log.trace("RESTART JAX-RS application: " + applicationId);
             final Application application = stopApplication(applicationId);
             startApplication(applicationId, application, providers != null ? providers.get(applicationId) : null);
         });
@@ -236,41 +220,13 @@ public class CxfServerManager implements ServerManager {
 
     @Override
     public void restartAllApplications(final Map<Long, List<Object>> providers) {
-        restartApplications(new ArrayList<>(servers.keySet()), providers);
+        log.trace("RESTART all JAX-RS applications");
+        restartApplications(new ArrayList<>(applications.keySet()), providers);
     }
 
     @Override
     public void shutdown() {
         final Set<Long> applicationIds = new TreeSet<>(servers.keySet());
         applicationIds.forEach(this::stopApplication);
-    }
-
-    private class InterceptorTracker extends ServiceTracker<Interceptor<? extends Message>, Interceptor<? extends Message>> {
-
-        final List<Interceptor<? extends Message>> interceptors;
-
-        InterceptorTracker(final BundleContext context, final String filter, final List<Interceptor<? extends Message>> interceptors) throws InvalidSyntaxException {
-            super(context, context.createFilter("(&(" + Constants.OBJECTCLASS + "=" + Interceptor.class.getName() + ")" + filter + ")"), null);
-            this.interceptors = interceptors;
-        }
-
-        @Override
-        public Interceptor<? extends Message> addingService(final ServiceReference<Interceptor<? extends Message>> reference) {
-            final Interceptor<? extends Message> interceptor = super.addingService(reference);
-            if (interceptor != null) {
-                interceptors.add(interceptor);
-                restartAllApplications(null);
-            }
-            return interceptor;
-        }
-
-        @Override
-        public void removedService(final ServiceReference<Interceptor<? extends Message>> reference, final Interceptor<? extends Message> interceptor) {
-            super.removedService(reference, interceptor);
-            if (interceptor != null) {
-                interceptors.remove(interceptor);
-                restartAllApplications(null);
-            }
-        }
     }
 }

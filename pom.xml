@@ -5,7 +5,7 @@
 
     <artifactId>cxf-jaxrs-application-manager</artifactId>
     <groupId>hu.blackbelt.cxf</groupId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <packaging>bundle</packaging>
 
     <name>CXF JAX-RS application manager</name>
@@ -97,12 +97,12 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>external.atlassian.jgitflow</groupId>
-                <artifactId>jgitflow-maven-plugin</artifactId>
-                <version>${jgitflow-maven-plugin.version}</version>
+                <groupId>com.amashchenko.maven.plugin</groupId>
+                <artifactId>gitflow-maven-plugin</artifactId>
+                <version>${gitflow-maven-plugin.version}</version>
                 <configuration>
-                    <noDeploy>true</noDeploy>
-                    <username>${git.username}</username>
+                    <installProject>true</installProject>
+                    <verbose>true</verbose>
                 </configuration>
             </plugin>
             <plugin>
@@ -373,7 +373,7 @@
         <slf4j.version>1.7.25</slf4j.version>
 
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
-        <jgitflow-maven-plugin.version>1.0-m5.1</jgitflow-maven-plugin.version>
+        <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
 
         <jackson.version>2.9.3</jackson.version>
         <cxf.version>3.2.1</cxf.version>

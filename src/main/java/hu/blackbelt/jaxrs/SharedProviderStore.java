@@ -69,15 +69,14 @@ class SharedProviderStore {
         }
 
         @Override
-        public Object addingService(ServiceReference<Object> reference) {
-            Object provider = null;
-            try {
-                provider = super.addingService(reference);
-            } catch (ServiceException ex) {
-                if (log.isTraceEnabled()) {
-                    log.trace("Unable to add shared provider", ex);
+        public Object addingService(final ServiceReference<Object> reference) {
+            final Object objectClasses = reference.getProperty(Constants.OBJECTCLASS);
+            if (objectClasses instanceof String[]) {
+                if (Arrays.asList((String[]) objectClasses).contains(ApplicationManager.class.getName())) {
+                    return null;
                 }
             }
+            Object provider = super.addingService(reference);
             if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
                 final String filter = (String) reference.getProperty(APPLICATIONS_FILTER);
@@ -95,7 +94,7 @@ class SharedProviderStore {
         }
 
         @Override
-        public void modifiedService(ServiceReference<Object> reference, Object provider) {
+        public void modifiedService(final ServiceReference<Object> reference, final Object provider) {
             super.modifiedService(reference, provider);
             if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);
@@ -123,7 +122,7 @@ class SharedProviderStore {
         }
 
         @Override
-        public void removedService(ServiceReference<Object> reference, Object provider) {
+        public void removedService(final ServiceReference<Object> reference, final Object provider) {
             super.removedService(reference, provider);
             if (provider != null && !Objects.equals(reference.getProperty(ApplicationManager.GENERATED_BY_KEY), ApplicationManager.GENERATED_BY_VALUE) && provider.getClass().isAnnotationPresent(Provider.class)) {
                 final Long providerId = (Long) reference.getProperty(Constants.SERVICE_ID);

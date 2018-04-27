@@ -52,6 +52,8 @@ There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarativ
   * `hu.blackbelt.jaxrs.providers.JacksonProvider`: Jackson provider marshalling/unmarshalling JSON payloads
     * **jaxrs.provider.JacksonProvider.SerializationFeature._KEY_**: _KEY_ is an enumeration value of `com.fasterxml.jackson.databind.SerializationFeature`, see referenced Java class for details
     * **jaxrs.provider.JacksonProvider.DeserializationFeature._KEY_**: _KEY_ is an enumeration value of `com.fasterxml.jackson.databind.DeserializationFeature`, see referenced Java class for details
+    * **jaxrs.provider.JacksonProvider.ObjectMapper.modules**: comma separated list of `com.fasterxml.jackson.databind.Module` classes that are registered in default `com.fasterxml.jackson.databind.ObjectMapper`
+    * **objectMapper.target**: optional OSGi filter choosing which Object mapper component is used by Jackson provider (if multiple instances are registered)
   * `hu.blackbelt.jaxrs.providers.ISO8601DateParamHandler`: extension supporting `java.util.Date` parameters
     * **jaxrs.provider.ISO8601DateParamHandler.DATE_FORMAT**: pattern for Date parameters
 

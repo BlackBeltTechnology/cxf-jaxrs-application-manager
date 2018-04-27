@@ -10,9 +10,9 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-class SharedProviderStore {
+public class SharedProviderStore {
 
-    private static final String APPLICATIONS_FILTER = "applications.filter";
+    public static final String APPLICATIONS_FILTER = "applications.filter";
 
     private SharedProviderTracker sharedProviderTracker;
 

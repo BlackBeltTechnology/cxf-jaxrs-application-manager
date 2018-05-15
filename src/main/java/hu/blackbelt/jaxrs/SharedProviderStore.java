@@ -21,6 +21,8 @@ public class SharedProviderStore {
     private final Map<Long, String> sharedProviderFilters = new ConcurrentHashMap<>();
     private final Map<Long, Object> globalProviders = new ConcurrentHashMap<>();
 
+    private static final String JAXRS_PROVIDER_BUNDLE_KEY = "X-JAXRS-Provider";
+
     private final BundleContext context;
     private final Callback callback;
 
@@ -70,6 +72,10 @@ public class SharedProviderStore {
 
         @Override
         public Object addingService(final ServiceReference<Object> reference) {
+            final String isBundleHeaderValue = reference.getBundle().getHeaders().get(JAXRS_PROVIDER_BUNDLE_KEY);
+            if (isBundleHeaderValue == null || !Boolean.valueOf(isBundleHeaderValue)) {
+                return null;
+            }
             final Object objectClasses = reference.getProperty(Constants.OBJECTCLASS);
             if (objectClasses instanceof String[]) {
                 if (Arrays.asList((String[]) objectClasses).contains(ApplicationManager.class.getName())) {

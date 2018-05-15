@@ -1,6 +1,8 @@
 v0.4.0 [unreleased]
 -------------------
 
+-	filter bundles by JAX-RS Provider service tracker (using bundle header)
+
 v0.3.0 [2018-05-15]
 -------------------
 

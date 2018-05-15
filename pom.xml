@@ -108,6 +108,7 @@
                         <Export-Package>
                             hu.blackbelt.jaxrs.application;version=${project.version}
                         </Export-Package>
+                        <X-JAXRS-Provider>true</X-JAXRS-Provider>
                     </instructions>
                 </configuration>
                 <executions>

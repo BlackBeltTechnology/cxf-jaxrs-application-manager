@@ -18,11 +18,11 @@ There is a prepared `hu.blackbelt.jaxrs.application.BasicApplication` Declarativ
 
 ## Configuration options
 
-* Global JAX-RS providers: JAX-RS providers applied to all applications
+* Global JAX-RS providers: JAX-RS providers applied to all applications (note: custom bundles must have ``X-JAXRS-Provider: true`` header!)
   * **jaxrs.provider._PROVIDER_CLASS_NAME_.**: recommended syntax for provider configuration options
   * **application.id**: reserved property for providers defined by applications, global providers are not allowed to use it 
 
-* Shared JAX-RS providers: JAX-RS providers applied to a set of applications
+* Shared JAX-RS providers: JAX-RS providers applied to a set of applications (note custom bundles must have ``X-JAXRS-Provider: true`` header!)
   * **applications.filter**: OSGi filter expression defining JAX-RS applications using the provider.
   * **jaxrs.provider._PROVIDER_CLASS_NAME_.**: recommended syntax for provider configuration options
   * **application.id**: reserved property for providers defined by applications, shared providers are not allowed to use it 

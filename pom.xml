@@ -339,7 +339,7 @@
                         <artifactId>github-release-plugin</artifactId>
                         <version>1.2.0</version>
                         <configuration>
-                            <repositoryId>https://github.com/BlackBeltTechnology/osgi-configuration-mapper.git</repositoryId>
+                            <repositoryId>https://github.com/BlackBeltTechnology/cxf-jaxrs-application-manager.git</repositoryId>
                             <description>Branch: ${env.WERCKER_GIT_BRANCH} Wercker: ${env.WERCKER_RUN_URL}</description>
                             <releaseName>${project.version}</releaseName>
                             <prerelease>true</prerelease>

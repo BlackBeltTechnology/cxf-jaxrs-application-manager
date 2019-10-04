@@ -53,6 +53,32 @@
         </license>
     </licenses>
 
+    <properties>
+        <project-shortname>judo-services</project-shortname>
+        <project-repositoryId>BlackBeltTechnology/judo-services</project-repositoryId>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <timestamp>${maven.build.timestamp}</timestamp>
+        <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>
+        <src.dir>src/main</src.dir>
+
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.deploy.skip>false</maven.deploy.skip>
+
+        <java.version>1.8</java.version>
+        <osgi.version>6.0.0</osgi.version>
+        <osgi-ds.version>1.3.0</osgi-ds.version>
+
+        <lombok.version>1.16.18</lombok.version>
+        <slf4j.version>1.7.25</slf4j.version>
+
+        <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
+        <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
+
+        <jackson.version>2.8.10</jackson.version>
+        <cxf.version>3.1.12</cxf.version>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -182,6 +208,36 @@
             <version>${jackson.version}</version>
             <optional>true</optional>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.module</groupId>
+            <artifactId>jackson-module-parameter-names</artifactId>
+            <version>${jackson.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jdk8</artifactId>
+            <version>${jackson.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-guava</artifactId>
+            <version>${jackson.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-joda</artifactId>
+            <version>${jackson.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr353</artifactId>
+            <version>${jackson.version}</version>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -217,154 +273,19 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
     <profiles>
         <profile>
-            <id>build-extras</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <version>3.0.2</version>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                                    <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
-                                </manifest>
-                            </archive>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.10.4</version>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-source-plugin</artifactId>
-                        <version>3.0.1</version>
-                        <executions>
-                            <execution>
-                                <id>attach-sources</id>
-                                <goals>
-                                    <goal>jar-no-fork</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>sign</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                                <configuration>
-                                    <keyname>${gpg.keyname}</keyname>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>local-karaf-deploy</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-resources-plugin</artifactId>
-                        <version>3.0.2</version>
-                        <executions>
-                            <execution>
-                                <id>copy-artifacts</id>
-                                <phase>install</phase>
-                                <goals>
-                                    <goal>copy-resources</goal>
-                                </goals>
-                                <configuration>
-                                    <outputDirectory>${deploy.dir}</outputDirectory>
-                                    <resources>
-                                        <resource>
-                                            <directory>${project.build.directory}</directory>
-                                            <includes>
-                                                <include>*.jar</include>
-                                                <include>*.cfg</include>
-                                            </includes>
-                                            <excludes>
-                                                <exclude>*-javadoc.jar</exclude>
-                                                <exclude>*-sources.jar</exclude>
-                                            </excludes>
-                                            <filtering>false</filtering>
-                                        </resource>
-                                    </resources>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>release-github</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>de.jutzig</groupId>
-                        <artifactId>github-release-plugin</artifactId>
-                        <version>1.2.0</version>
-                        <configuration>
-                            <repositoryId>https://github.com/BlackBeltTechnology/cxf-jaxrs-application-manager.git</repositoryId>
-                            <description>Branch: ${env.WERCKER_GIT_BRANCH} Wercker: ${env.WERCKER_RUN_URL}</description>
-                            <releaseName>${project.version}</releaseName>
-                            <prerelease>true</prerelease>
-                            <tag>${project.version}</tag>
-                            <fileSets>
-                                <fileSet>
-                                    <directory>target</directory>
-                                    <includes>
-                                        <include>*.jar</include>
-                                    </includes>
-                                </fileSet>
-                            </fileSets>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>release-to-github</id>
-                                <phase>install</phase>
-                                <goals>
-                                    <goal>release</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
+            <id>release-dummy</id>
+            <distributionManagement>
+                <snapshotRepository>
+                    <id>dummy-distribution</id>
+                    <url>file:///tmp/maven-snapshot/</url>
+                </snapshotRepository>
+                <repository>
+                    <id>dummy-distribution</id>
+                    <url>file:///tmp/maven-release/</url>
+                </repository>
+            </distributionManagement>
         </profile>
 
         <profile>
@@ -372,7 +293,7 @@
             <distributionManagement>
                 <snapshotRepository>
                     <id>blackbelt-nexus-distribution</id>
-                    <url>https://nexus.blackbelt.cloud/repository/maven-judo-snapshot/</url>
+                    <url>https://nexus.blackbelt.cloud/repository/maven-judo-release/</url>
                 </snapshotRepository>
                 <repository>
                     <id>blackbelt-nexus-distribution</id>
@@ -388,7 +309,6 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.8</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>
@@ -399,51 +319,13 @@
 
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.10.4</version>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>3.0.1</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
                                 <goals>
                                     <goal>jar-no-fork</goal>
                                 </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                                <configuration>
-                                    <keyname>${gpg.keyname}</keyname>
-                                    <passphraseServerId>${gpg.keyname}</passphraseServerId>
-                                    <!-- This is necessary for gpg to not try to use the pinentry programs -->
-                                    <gpgArguments>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
@@ -460,23 +342,81 @@
                 </repository>
             </distributionManagement>
         </profile>
+
+        <profile>
+            <id>release-github</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>de.jutzig</groupId>
+                        <artifactId>github-release-plugin</artifactId>
+                        <version>1.3.0</version>
+                        <inherited>false</inherited>
+                        <configuration>
+                            <repositoryId>${project-repositoryId}</repositoryId>
+                            <description>
+                                **Branch:** ${env.WERCKER_GIT_BRANCH}
+                                **Maven repository:** https://nexus.blackbelt.cloud/#browse/browse:maven-judo-release:hu%2Fblackbelt%2Feclipse%2F${project-shortname}
+                                **Wercker:** https://app.wercker.com/${project-repositoryId}/runs/build/${env.WERCKER_RUN_ID}
+                            </description>
+                            <releaseName>${project.version}</releaseName>
+                            <prerelease>true</prerelease>
+                            <tag>${project.version}</tag>
+                            <deleteRelease>true</deleteRelease>
+                            <commitish>${env.WERCKER_GIT_COMMIT}</commitish>
+                            <fileSets>
+                                <fileSet>
+                                    <directory>${basedir}</directory>
+                                    <includes>
+                                        <include>**/target/*.jar</include>
+                                        <include>**/target/*.kar</include>
+                                        <include>${project-shortname}-karaf-features/target/feature/feature.xml</include>
+                                    </includes>
+                                </fileSet>
+                            </fileSets>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>release-to-github</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>release</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>release-p2-blackbelt</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>wagon-maven-plugin</artifactId>
+                        <version>2.0.0</version>
+                        <executions>
+                            <execution>
+                                <id>upload-respoitory</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>upload</goal>
+                                </goals>
+                                <configuration>
+                                    <serverId>blackbelt-nexus-distribution</serverId>
+                                    <fromDir>${basedir}/site/target/repository</fromDir>
+                                    <includes>*/**</includes>
+                                    <url>dav:https://nexus.blackbelt.cloud/repository/p2-judo</url>
+                                    <toDir>${project-shortname}/${project.version}</toDir>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.deploy.skip>false</maven.deploy.skip>
-
-        <java.version>1.8</java.version>
-        <osgi.version>6.0.0</osgi.version>
-        <osgi-ds.version>1.3.0</osgi-ds.version>
-
-        <lombok.version>1.16.18</lombok.version>
-        <slf4j.version>1.7.25</slf4j.version>
-
-        <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
-        <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
-
-        <jackson.version>2.8.10</jackson.version>
-        <cxf.version>3.1.12</cxf.version>
-    </properties>
 </project>

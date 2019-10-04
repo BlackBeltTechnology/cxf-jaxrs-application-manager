@@ -54,8 +54,8 @@
     </licenses>
 
     <properties>
-        <project-shortname>judo-services</project-shortname>
-        <project-repositoryId>BlackBeltTechnology/judo-services</project-repositoryId>
+        <project-shortname>cxf-jaxrs-application-manager</project-shortname>
+        <project-repositoryId>BlackBeltTechnology/cxf-jaxrs-application-manager</project-repositoryId>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <timestamp>${maven.build.timestamp}</timestamp>
         <maven.build.timestamp.format>yyyyMMddHHmmss</maven.build.timestamp.format>

@@ -15,7 +15,7 @@ build:
 
     - wercker/maven:
       goals: versions:set
-      maven_opts: -DnewVersion=${VERSION_FROM_POM_BASE_VERSION}.${VERSION_FROM_GIT_TAG_CURRENT_BRANCH_VALID_NAME}_${VERSION_FROM_GIT_TAG_FOR_GITFLOW}
+      maven_opts: -Dtycho.mode=maven -DnewVersion=${VERSION_FROM_POM_BASE_VERSION}.${VERSION_FROM_GIT_TAG_CURRENT_BRANCH_VALID_NAME}_${VERSION_FROM_GIT_TAG_FOR_GITFLOW}
       settings: .maven.xml
       cache_repo: true
 

@@ -24,3 +24,5 @@ nb*.xml
 .wercker
 wercker.env
 
+**/pom.xml.versionsBackup
+

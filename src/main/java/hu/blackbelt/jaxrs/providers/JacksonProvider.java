@@ -29,7 +29,7 @@ import java.util.Map;
 @Component(immediate = true, configurationPolicy = ConfigurationPolicy.REQUIRE, service = JacksonProvider.class)
 public class JacksonProvider {
 
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL, policyOption = ReferencePolicyOption.GREEDY)
     ObjectMapper objectMapper;
 
     private JacksonJaxbJsonProvider jacksonJaxbJsonProvider;

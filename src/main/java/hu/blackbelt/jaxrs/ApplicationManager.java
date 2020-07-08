@@ -106,8 +106,8 @@ public class ApplicationManager {
         }
 
         @Override
-        public void startApplication(final Long applicationId, final Application application) {
-            serverManager.startApplication(applicationId, application, getSingleApplicationProviders(applicationId));
+        public void startApplication(final Long applicationId, final Application application, final Bundle applicationBundle) {
+            serverManager.startApplication(applicationId, application, applicationBundle, getSingleApplicationProviders(applicationId));
         }
 
         @Override

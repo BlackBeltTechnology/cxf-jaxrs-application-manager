@@ -1,10 +1,7 @@
 package hu.blackbelt.jaxrs;
 
 import lombok.extern.slf4j.Slf4j;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.Constants;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.ServiceReference;
+import org.osgi.framework.*;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.util.tracker.ServiceTracker;
@@ -34,6 +31,7 @@ class ApplicationStore {
 
     private final Map<Long, Application> applications = new HashMap<>();
     private final Map<Long, String> applicationPaths = new HashMap<>();
+    private final Map<Long, Bundle> applicationBundles = new HashMap<>();
     private final Map<Long, Object> lastChangedApplicationResources = new HashMap<>();
 
     private final Map<Long, Map<String, Configuration>> providerComponentConfigurations = new HashMap<>();
@@ -104,6 +102,7 @@ class ApplicationStore {
                 providerObjects.put(applicationId, new HashMap<>());
 
                 applications.put(applicationId, application);
+                applicationBundles.put(applicationId, reference.getBundle());
                 final String applicationPath = (String) reference.getProperty(APPLICATION_PATH);
                 applicationPaths.put(applicationId, applicationPath);
 
@@ -119,7 +118,7 @@ class ApplicationStore {
 
                 // start application if JAX-RS provider list is empty
                 if (componentProviders.isEmpty()) {
-                    callback.startApplication(applicationId, application);
+                    callback.startApplication(applicationId, application, reference.getBundle());
                 }
             }
 
@@ -167,7 +166,7 @@ class ApplicationStore {
                     newProviderComponents.forEach(providerName -> createProviderComponent(applicationId, providerName, prepareConfiguration(reference, applicationId)));
                     if (newProviderComponents.isEmpty()) {
                         // start application only if no new JAX-RS provider is added, it will be started by JAX-RS provider tracker otherwise
-                        callback.startApplication(applicationId, application);
+                        callback.startApplication(applicationId, application, reference.getBundle());
                     }
                 } else if (!newProviderObjects.isEmpty() || !providerObjectsToDelete.isEmpty()) {
                     callback.restartApplications(Collections.singleton(applicationId));
@@ -210,6 +209,7 @@ class ApplicationStore {
                 providerNames.forEach(providerName -> deleteProviderComponent(applicationId, providerName));
 
                 applications.remove(applicationId);
+                applicationBundles.remove(applicationId);
                 providerComponents.remove(applicationId);
                 providerObjects.remove(applicationId);
                 providerComponentConfigurations.remove(applicationId);
@@ -308,7 +308,7 @@ class ApplicationStore {
         if (components != null) {
             components.remove(providerName);
             if (components.isEmpty()) {
-                callback.startApplication(applicationId, applications.get(applicationId));
+                callback.startApplication(applicationId, applications.get(applicationId), applicationBundles.get(applicationId));
             } else {
                 log.debug("Waiting for JAX-RS provider components: " + components);
             }
@@ -351,7 +351,7 @@ class ApplicationStore {
 
         void removeApplication(Long applicationId);
 
-        void startApplication(Long applicationId, Application application);
+        void startApplication(Long applicationId, Application application, Bundle applicationBundle);
 
         void stopApplication(Long applicationId);
 

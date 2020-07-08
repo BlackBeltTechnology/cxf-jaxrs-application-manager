@@ -76,7 +76,7 @@
         <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
 
         <jackson.version>2.8.10</jackson.version>
-        <cxf.version>3.1.12</cxf.version>
+        <cxf.version>3.3.0</cxf.version>
     </properties>
 
     <build>
@@ -140,7 +140,9 @@
                         <_dsannotations>*</_dsannotations>
                         <_metatypeannotations>*</_metatypeannotations>
                         <Export-Package>
+                            hu.blackbelt.jaxrs;version=${project.version},
                             hu.blackbelt.jaxrs.application;version=${project.version}
+                            hu.blackbelt.jaxrs.providers;version=${project.version}
                         </Export-Package>
                         <X-JAXRS-Provider>true</X-JAXRS-Provider>
                     </instructions>

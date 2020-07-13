@@ -2,6 +2,7 @@ package hu.blackbelt.jaxrs;
 
 import hu.blackbelt.jaxrs.application.BasicApplication;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.cxf.bus.blueprint.BundleDelegatingClassLoader;
 import org.apache.cxf.endpoint.Server;
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.osgi.framework.*;
@@ -46,10 +47,13 @@ public class CxfServerManager implements ServerManager {
 
     public static final String ALIAS_VALUE = "cxf";
 
+    public static final String CONTEXT_KEY = "context";
+
     private static final String APPLICATION_PATH = "applicationPath";
 
     private final Map<Long, Server> servers = new ConcurrentHashMap<>();
     private final Map<Long, Application> applications = new ConcurrentHashMap<>();
+    private final Map<Long, Bundle> applicationBundles = new ConcurrentHashMap<>();
     private final Map<Long, List<Object>> applicationProviders = new ConcurrentHashMap<>();
 
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
@@ -130,12 +134,17 @@ public class CxfServerManager implements ServerManager {
     }
 
     @Override
-    public synchronized void startApplication(final Long applicationId, final Application application, final List<Object> providers) {
+    public synchronized void startApplication(final Long applicationId, final Application application, final Bundle applicationBundle, final List<Object> providers) {
         if (servers.containsKey(applicationId)) {
             stopApplication(applicationId);
         }
 
         applications.put(applicationId, application);
+        if (applicationBundle != null) {
+            applicationBundles.put(applicationId, applicationBundle);
+        } else {
+            applicationBundles.remove(applicationId);
+        }
 
         final Set<Class<?>> classes = application.getClasses();
         final Set<Object> singletons = application.getSingletons();
@@ -155,7 +164,16 @@ public class CxfServerManager implements ServerManager {
         } else if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
             log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
         }
-        final CxfContext cxfContext = properties != null ? (CxfContext) properties.get(BasicApplication.CONTEXT_PROPERTY_KEY) : null;
+        final CxfContext cxfContext;
+        if (properties != null && properties.containsKey(BasicApplication.CONTEXT_PROPERTY_KEY)) {
+            cxfContext = (CxfContext) properties.get(BasicApplication.CONTEXT_PROPERTY_KEY);
+        } else if (properties != null && properties.containsKey(CONTEXT_KEY)) {
+            final Object ctx = properties.get(CONTEXT_KEY);
+            cxfContext = (ctx instanceof CxfContext) ? (CxfContext) ctx : null;
+            cxfContext.getBus().setExtension(new BundleDelegatingClassLoader(applicationBundle), ClassLoader.class);
+        } else {
+            cxfContext = null;
+        }
         if (cxfContext != null) {
             serverFactory.setBus(cxfContext.getBus());
 
@@ -191,7 +209,7 @@ public class CxfServerManager implements ServerManager {
     @Override
     public synchronized void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
         log.trace("UPDATE JAX-RS application resources: " + applicationId);
-        applications.put(applicationId, application);
+        //applications.put(applicationId, application);
         restartApplications(Collections.singleton(applicationId), Collections.singletonMap(applicationId, providers));
     }
 
@@ -206,6 +224,7 @@ public class CxfServerManager implements ServerManager {
             server.stop();
             server.destroy();
         }
+        applicationBundles.remove(applicationId);
         return applications.remove(applicationId);
     }
 
@@ -214,7 +233,7 @@ public class CxfServerManager implements ServerManager {
         applicationIds.forEach(applicationId -> {
             log.trace("RESTART JAX-RS application: " + applicationId);
             final Application application = stopApplication(applicationId);
-            startApplication(applicationId, application, providers != null ? providers.get(applicationId) : null);
+            startApplication(applicationId, application, applicationBundles.get(applicationId), providers != null ? providers.get(applicationId) : null);
         });
     }
 

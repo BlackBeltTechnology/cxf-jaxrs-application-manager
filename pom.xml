@@ -141,7 +141,8 @@
                         <_metatypeannotations>*</_metatypeannotations>
                         <Export-Package>
                             hu.blackbelt.jaxrs;version=${project.version},
-                            hu.blackbelt.jaxrs.application;version=${project.version}
+                            hu.blackbelt.jaxrs.application;version=${project.version},
+                            hu.blackbelt.jaxrs.interceptors;version=${project.version},
                             hu.blackbelt.jaxrs.providers;version=${project.version}
                         </Export-Package>
                         <X-JAXRS-Provider>true</X-JAXRS-Provider>

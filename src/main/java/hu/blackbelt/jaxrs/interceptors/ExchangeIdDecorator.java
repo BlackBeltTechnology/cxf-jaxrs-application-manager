@@ -23,7 +23,7 @@ public class ExchangeIdDecorator extends AbstractPhaseInterceptor<Message> {
     private static final String MDC_KEY_EXCHANGE_ID = "ExchangeId";
 
     public ExchangeIdDecorator() {
-        super(Phase.PRE_INVOKE);
+        super(Phase.RECEIVE);
     }
 
     @Override

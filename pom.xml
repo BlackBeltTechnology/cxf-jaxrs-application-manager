@@ -76,7 +76,7 @@
         <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
 
         <jackson.version>2.8.10</jackson.version>
-        <cxf.version>3.3.0</cxf.version>
+        <cxf.version>3.4.0</cxf.version>
     </properties>
 
     <build>
@@ -192,6 +192,23 @@
             <artifactId>cxf-rt-frontend-jaxrs</artifactId>
             <version>${cxf.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-features-logging</artifactId>
+            <version>${cxf.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-features-metrics</artifactId>
+            <version>${cxf.version}</version>
+        </dependency>
+        <!-- missing transitive dependency of cxf-rt-features-metrics, needed for debugging only -->
+        <!--dependency>
+            <groupId>io.dropwizard.metrics</groupId>
+            <artifactId>metrics-core</artifactId>
+            <version>3.2.6</version>
+            <scope>provided</scope>
+        </dependency-->
 
         <dependency>
             <groupId>com.fasterxml.jackson.jaxrs</groupId>

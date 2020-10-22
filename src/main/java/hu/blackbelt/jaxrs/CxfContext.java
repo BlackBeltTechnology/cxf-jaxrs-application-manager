@@ -3,8 +3,10 @@ package hu.blackbelt.jaxrs;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
+import org.apache.cxf.ext.logging.LoggingFeature;
 import org.apache.cxf.interceptor.Interceptor;
 import org.apache.cxf.message.Message;
+import org.apache.cxf.metrics.MetricsFeature;
 import org.osgi.framework.*;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
@@ -43,6 +45,12 @@ public class CxfContext {
 
         @AttributeDefinition(required = false, name = "FAULT interceptors filter expression")
         String interceptors_fault_components();
+
+        @AttributeDefinition(required = false, name = "Enable metrics", type = AttributeType.BOOLEAN)
+        boolean metrics_enabled() default METRICS_ENABLED_DEFAULT;
+
+        @AttributeDefinition(required = false, name = "Enable logging", type = AttributeType.BOOLEAN)
+        boolean logging_enabled() default LOGGING_ENABLED_DEFAULT;
     }
 
     private static final boolean SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_DEFAULT = true;
@@ -51,7 +59,12 @@ public class CxfContext {
 
     private static final boolean WADL_SERVICE_DESCRIPTION_AVAILABLE_DEFAULT = true;
     private static final String WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY = "wadl.service.description.available";
+    private static final boolean METRICS_ENABLED_DEFAULT = false;
+    private static final boolean LOGGING_ENABLED_DEFAULT = false;
     private Boolean wadlServiceDescriptionAvailable;
+
+    private Boolean metricsEnabled;
+    private Boolean loggingEnabled;
 
     @Reference(policyOption = ReferencePolicyOption.GREEDY)
     private ConfigurationAdmin configAdmin;
@@ -113,6 +126,8 @@ public class CxfContext {
 
         skipDefaultJsonProviderRegistration = config.skipDefaultJsonProviderRegistration();
         wadlServiceDescriptionAvailable = config.wadlServiceDescriptionAvailable();
+        metricsEnabled = config.metrics_enabled();
+        loggingEnabled = config.logging_enabled();
 
         bus = BusFactory.newInstance().createBus();
         bus.setId(id);
@@ -125,6 +140,8 @@ public class CxfContext {
     void update(final BundleContext context, final Config config) {
         final boolean newSkipDefaultJsonProviderRegistration = config.skipDefaultJsonProviderRegistration();
         final boolean newWadlServiceDescriptionAvailable = config.wadlServiceDescriptionAvailable();
+        final boolean newMetricsEnabled = config.metrics_enabled();
+        final boolean newLoggingEnabled = config.logging_enabled();
 
         boolean updated = false;
         if (skipDefaultJsonProviderRegistration != null && !skipDefaultJsonProviderRegistration.equals(newSkipDefaultJsonProviderRegistration)) {
@@ -135,6 +152,24 @@ public class CxfContext {
         if (wadlServiceDescriptionAvailable != null && !wadlServiceDescriptionAvailable.equals(newWadlServiceDescriptionAvailable)) {
             wadlServiceDescriptionAvailable = newWadlServiceDescriptionAvailable;
             bus.setProperty(WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
+            updated = true;
+        }
+        if (!metricsEnabled.equals(newMetricsEnabled)) {
+            metricsEnabled = newMetricsEnabled;
+            if (metricsEnabled) {
+                bus.getFeatures().add(new MetricsFeature());
+            } else {
+                bus.getFeatures().removeIf(f -> f instanceof MetricsFeature);
+            }
+            updated = true;
+        }
+        if (!loggingEnabled.equals(newMetricsEnabled)) {
+            loggingEnabled = newLoggingEnabled;
+            if (loggingEnabled) {
+                bus.getFeatures().add(new LoggingFeature());
+            } else {
+                bus.getFeatures().removeIf(f -> f instanceof LoggingFeature);
+            }
             updated = true;
         }
 
@@ -237,6 +272,12 @@ public class CxfContext {
         }
         if (log.isDebugEnabled()) {
             log.debug("CXF bus registered: {} [{}={}; {}={}]", id, SKIP_DEFAULT_JSON_PROVIDER_REGISTRATION_KEY, skipDefaultJsonProviderRegistration, WADL_SERVICE_DESCRIPTION_AVAILABLE_KEY, wadlServiceDescriptionAvailable);
+        }
+        if (metricsEnabled) {
+            bus.getFeatures().add(new MetricsFeature());
+        }
+        if (loggingEnabled) {
+            bus.getFeatures().add(new LoggingFeature());
         }
         final Dictionary<String, Object> props = new Hashtable<>();
         props.put("id", id);

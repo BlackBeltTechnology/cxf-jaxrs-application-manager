@@ -45,14 +45,14 @@ build:
     - wercker/maven:
       goals: deploy
       settings: .maven.xml
-      maven_opts: -DdeployOnly
+      maven_opts: -DdeployOnly -DskipTests=true -Dgithub_release=true
       profiles: ${DEPLOY_PROFILES}
       cache_repo: true
 
     - script:
       name: get github release attributes
       code: |-
-        export GITHUB_RELEASE_BODY=$(cat ./target/classes/.releasetemplate | jq -aRs . | sed 's/"//g')
+        export GITHUB_RELEASE_BODY=$(cat ./.release/.releasetemplate | jq -aRs . | sed 's/"//g')
         export GITHUB_RELEASE_TITLE=$(echo "$VERSION_NUMBER" | jq -aRs . | sed 's/"//g')
         echo "Release title: $GITHUB_RELEASE_TITLE"
         echo "Release notes: $GITHUB_RELEASE_BODY"
@@ -162,7 +162,7 @@ release:
     - wercker/maven:
       goals: deploy
       settings: .maven.xml
-      maven_opts: -DdeployOnly
+      maven_opts: -DdeployOnly -DskipTests=true -Dgithub_release=true
       profiles: ${DEPLOY_PROFILES}
       cache_repo: true
 
@@ -237,7 +237,7 @@ release:
     - script:
       name: get github release attributes
       code: |-
-        export GITHUB_RELEASE_BODY=$(cat ./target/classes/.releasetemplate | jq -aRs . | sed 's/"//g')
+        export GITHUB_RELEASE_BODY=$(cat ./.release/.releasetemplate | jq -aRs . | sed 's/"//g')
         export GITHUB_RELEASE_TITLE=$(echo "$VERSION_NUMBER" | jq -aRs . | sed 's/"//g')
         echo "Release title: $GITHUB_RELEASE_TITLE"
         echo "Release notes: $GITHUB_RELEASE_BODY"

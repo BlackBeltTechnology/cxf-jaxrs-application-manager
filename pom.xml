@@ -73,7 +73,7 @@
         <slf4j.version>1.7.25</slf4j.version>
 
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
-        <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
+        <gitflow-maven-plugin.version>1.15.1</gitflow-maven-plugin.version>
 
         <jackson.version>2.11.3</jackson.version>
         <cxf.version>3.4.0</cxf.version>

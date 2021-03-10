@@ -20,7 +20,7 @@ import java.util.UUID;
 public class ExchangeIdDecorator extends AbstractPhaseInterceptor<Message> {
 
     public static final String KEY_EXCHANGE_ID = "exchangeId";
-    private static final String MDC_KEY_EXCHANGE_ID = "ExchangeId";
+    private static final String MDC_KEY_EXCHANGE_ID = "RequestExchangeId";
 
     public ExchangeIdDecorator() {
         super(Phase.RECEIVE);

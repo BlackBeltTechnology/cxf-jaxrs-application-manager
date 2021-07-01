@@ -20,6 +20,7 @@
 
     <scm>
         <connection>scm:git:git://github.com/BlackBeltTechnology/cxf-jaxrs-application-manager.git</connection>
+        <!--suppress UnresolvedMavenProperty -->
         <developerConnection>
             scm:git:ssh://${git.username}@github.com:BlackBeltTechnology/cxf-jaxrs-application-manager.git
         </developerConnection>
@@ -347,10 +348,12 @@
             <distributionManagement>
                 <snapshotRepository>
                     <id>judong-nexus-distribution</id>
+                    <!--suppress UnresolvedMavenProperty -->
                     <url>${env.JUDONG_MAVEN_UPSTREAM_SNAPSHOT}</url>
                 </snapshotRepository>
                 <repository>
                     <id>judong-nexus-distribution</id>
+                    <!--suppress UnresolvedMavenProperty -->
                     <url>${env.JUDONG_MAVEN_UPSTREAM_RELEASE}</url>
                 </repository>
             </distributionManagement>

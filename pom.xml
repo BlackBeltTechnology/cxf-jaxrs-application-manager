@@ -5,7 +5,7 @@
 
     <artifactId>cxf-jaxrs-application-manager</artifactId>
     <groupId>hu.blackbelt.cxf</groupId>
-    <version>0.7.1-SNAPSHOT</version>
+    <version>${revision}</version>
     <packaging>bundle</packaging>
 
     <name>CXF JAX-RS application manager</name>
@@ -55,6 +55,7 @@
     </licenses>
 
     <properties>
+        <revision>0.7.1-SNAPSHOT</revision>
         <project-shortname>cxf-jaxrs-application-manager</project-shortname>
         <project-repositoryId>BlackBeltTechnology/cxf-jaxrs-application-manager</project-repositoryId>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -158,6 +159,32 @@
                         <phase>process-classes</phase>
                         <goals>
                             <goal>manifest</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+			<plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.1.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
                         </goals>
                     </execution>
                 </executions>
@@ -330,18 +357,18 @@
         </profile>
 
         <profile>
-            <id>release-dummy</id>
-            <distributionManagement>
-                <snapshotRepository>
-                    <id>dummy-distribution</id>
-                    <url>file:///tmp/maven-snapshot/</url>
-                </snapshotRepository>
-                <repository>
-                    <id>dummy-distribution</id>
-                    <url>file:///tmp/maven-release/</url>
-                </repository>
-            </distributionManagement>
-        </profile>
+			<id>release-dummy</id>
+			<distributionManagement>
+				<snapshotRepository>
+					<id>dummy-distribution</id>
+					<url>file:///tmp/${project.groupId}-${project.artifactId}-${project.version}/maven-snapshot/</url>
+				</snapshotRepository>
+				<repository>
+					<id>dummy-distribution</id>
+					<url>file:///tmp/${project.groupId}-${project.artifactId}-${project.version}/maven-release/</url>
+				</repository>
+			</distributionManagement>
+		</profile>
 
         <profile>
             <id>release-judong</id>
@@ -349,12 +376,12 @@
                 <snapshotRepository>
                     <id>judong-nexus-distribution</id>
                     <!--suppress UnresolvedMavenProperty -->
-                    <url>${env.JUDONG_MAVEN_UPSTREAM_SNAPSHOT}</url>
+                    <url>https://nexus.judo.technology/repository/maven-judong-snapshots/</url>
                 </snapshotRepository>
                 <repository>
                     <id>judong-nexus-distribution</id>
                     <!--suppress UnresolvedMavenProperty -->
-                    <url>${env.JUDONG_MAVEN_UPSTREAM_RELEASE}</url>
+                    <url>https://nexus.judo.technology/repository/maven-judong-snapshots/</url>
                 </repository>
             </distributionManagement>
         </profile>
@@ -398,46 +425,6 @@
                     <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
                 </repository>
             </distributionManagement>
-        </profile>
-
-        <profile>
-            <id>generate-github-release-body</id>
-            <activation>
-                <property>
-                    <name>github_release</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-resources-plugin</artifactId>
-                        <version>3.2.0</version>
-                        <executions>
-                            <execution>
-                                <id>template-github-release-body</id>
-                                <phase>process-resources</phase>
-                                <goals>
-                                    <goal>copy-resources</goal>
-                                </goals>
-                                <configuration>
-                                    <outputDirectory>${basedir}/.release</outputDirectory>
-                                    <resources>
-                                        <resource>
-                                            <directory>${project.basedir}</directory>
-                                            <filtering>true</filtering>
-                                            <includes>
-                                                <include>.releasetemplate</include>
-                                            </includes>
-                                        </resource>
-                                    </resources>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
     </profiles>
 

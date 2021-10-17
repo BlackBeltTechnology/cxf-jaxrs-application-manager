@@ -129,7 +129,7 @@ jobs:
       - name: Build with Maven
         run: |-
           ./mvnw -B -Dstyle.color=always \
-          -Drevision=${{ needs.init.outputs.version }} \
+          -Drevision=${{ steps.version.outputs.version }} \
           -Psign-artifacts,release-judong \
           deploy
 

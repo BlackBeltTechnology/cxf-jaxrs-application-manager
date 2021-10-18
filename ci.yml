@@ -1,7 +1,0 @@
-app-name: cxf-jaxrs-application-manager
-backend-builder-image: docker.blackbelt.cloud/builder-backend
-backend-builder-version: 1.0-10_RELEASE
-
-maven:
-  distribution-url: https://nexus.blackbelt.cloud/repository/maven-judo-release
-

@@ -28,5 +28,7 @@ wercker.env
 
 .release
 
+**/.flattened-pom.xml
+
 
 

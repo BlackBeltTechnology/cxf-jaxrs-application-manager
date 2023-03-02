@@ -690,7 +690,7 @@
                                 </goals>
                                 <phase>process-sources</phase>
                                 <configuration>
-                                    <licenseName>epl_v2</licenseName>
+                                    <licenseName>apache_v2</licenseName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -700,7 +700,7 @@
                                 </goals>
                                 <phase>process-sources</phase>
                                 <configuration>
-                                    <licenseName>epl_v2</licenseName>
+                                    <licenseName>apache_v2</licenseName>
                                 </configuration>
                             </execution>
                         </executions>

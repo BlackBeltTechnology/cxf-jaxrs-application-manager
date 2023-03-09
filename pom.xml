@@ -78,7 +78,7 @@
         <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
 
         <jackson.version>2.11.3</jackson.version>
-        <cxf.version>3.4.4</cxf.version>
+        <cxf.version>4.0.0</cxf.version>
 
         <surefire-version>3.0.0-M7</surefire-version>
         <!--suppress UnresolvedMavenProperty -->

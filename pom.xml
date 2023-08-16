@@ -77,10 +77,10 @@
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
         <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
 
-        <jackson.version>2.11.3</jackson.version>
-        <cxf.version>3.4.4</cxf.version>
+        <jackson.version>2.15.2</jackson.version>
+        <cxf.version>3.6.1</cxf.version>
 
-        <surefire-version>3.0.0-M7</surefire-version>
+        <surefire-version>3.0.0</surefire-version>
         <!--suppress UnresolvedMavenProperty -->
         <logback-test-config>${maven.multiModuleProjectDirectory}/logback-test.xml</logback-test-config>
 

@@ -77,8 +77,8 @@
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
         <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
 
-        <jackson.version>2.15.2</jackson.version>
-        <cxf.version>3.6.1</cxf.version>
+        <jackson.version>2.14.2</jackson.version>
+        <cxf.version>3.5.6</cxf.version>
 
         <surefire-version>3.0.0</surefire-version>
         <!--suppress UnresolvedMavenProperty -->

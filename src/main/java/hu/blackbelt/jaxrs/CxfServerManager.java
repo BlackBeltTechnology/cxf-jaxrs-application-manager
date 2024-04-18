@@ -190,7 +190,11 @@ public class CxfServerManager implements ServerManager {
         } else if (properties != null && properties.containsKey(CONTEXT_KEY)) {
             final Object ctx = properties.get(CONTEXT_KEY);
             cxfContext = (ctx instanceof CxfContext) ? (CxfContext) ctx : null;
-            cxfContext.getBus().setExtension(new BundleDelegatingClassLoader(applicationBundle), ClassLoader.class);
+            if (ctx != null) {
+                cxfContext.getBus().setExtension(new BundleDelegatingClassLoader(applicationBundle), ClassLoader.class);
+            } else {
+                log.error("CXF Context is null, but set");
+            }
         } else {
             cxfContext = null;
         }

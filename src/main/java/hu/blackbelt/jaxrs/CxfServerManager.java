@@ -82,6 +82,9 @@ public class CxfServerManager implements ServerManager {
     private static final String DEFAULT_BUS_ID = "DEFAULT_CXF_BUS_FOR_JAXRS_APPLICATIONS";
     private Configuration cxfContextConfig;
 
+
+    private Object lockObject = new Object();
+
     @Activate
     void start(final Config config) {
         try {
@@ -154,111 +157,115 @@ public class CxfServerManager implements ServerManager {
     }
 
     @Override
-    public synchronized void startApplication(final Long applicationId, final Application application, final Bundle applicationBundle, final List<Object> providers) {
+    public void startApplication(final Long applicationId, final Application application, final Bundle applicationBundle, final List<Object> providers) {
         if (servers.containsKey(applicationId)) {
             stopApplication(applicationId);
         }
 
-        applications.put(applicationId, application);
-        if (applicationBundle != null) {
-            applicationBundles.put(applicationId, applicationBundle);
-        } else {
-            applicationBundles.remove(applicationId);
-        }
-
-        final Set<Class<?>> classes = application.getClasses();
-        final Set<Object> singletons = application.getSingletons();
-
-        if ((classes == null || classes.isEmpty()) && (singletons == null || singletons.isEmpty())) {
-            log.warn("No resource classes found, do not start JAX-RS application");
-            return;
-        }
-
-        final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
-        final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
-
-        final Map<String, Object> properties = application.getProperties();
-        final String applicationPath = properties != null ? (String) properties.get(APPLICATION_PATH) : null;
-        if (applicationPath != null) {
-            serverFactory.setAddress(applicationPath);
-        } else if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
-            log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
-        }
-        final CxfContext cxfContext;
-        if (properties != null && properties.containsKey(BasicApplication.CONTEXT_PROPERTY_KEY)) {
-            cxfContext = (CxfContext) properties.get(BasicApplication.CONTEXT_PROPERTY_KEY);
-        } else if (properties != null && properties.containsKey(CONTEXT_KEY)) {
-            final Object ctx = properties.get(CONTEXT_KEY);
-            cxfContext = (ctx instanceof CxfContext) ? (CxfContext) ctx : null;
-            if (ctx != null) {
-                cxfContext.getBus().setExtension(new BundleDelegatingClassLoader(applicationBundle), ClassLoader.class);
+        synchronized (lockObject) {
+            applications.put(applicationId, application);
+            if (applicationBundle != null) {
+                applicationBundles.put(applicationId, applicationBundle);
             } else {
-                log.error("CXF Context is null, but set");
-            }
-        } else {
-            cxfContext = null;
-        }
-        if (cxfContext != null) {
-            serverFactory.setBus(cxfContext.getBus());
-
-            if (log.isTraceEnabled()) {
-                log.trace("IN interceptors: {}", cxfContext.getInInterceptors());
-                log.trace("OUT interceptors: {}", cxfContext.getOutInterceptors());
-                log.trace("FAULT interceptors: {}", cxfContext.getFaultInterceptors());
+                applicationBundles.remove(applicationId);
             }
 
-            serverFactory.setInInterceptors(cxfContext.getInInterceptors());
-            serverFactory.setOutInterceptors(cxfContext.getOutInterceptors());
-            serverFactory.setOutFaultInterceptors(cxfContext.getFaultInterceptors());
-        }
+            final Set<Class<?>> classes = application.getClasses();
+            final Set<Object> singletons = application.getSingletons();
 
-        final List<Object> _providers;
-        if (providers == null) {
-            _providers = applicationProviders.containsKey(applicationId) ? applicationProviders.get(applicationId) : providers;
-        } else {
-            _providers = providers;
-        }
-        serverFactory.setProviders(_providers);
-        applicationProviders.put(applicationId, _providers);
+            if ((classes == null || classes.isEmpty()) && (singletons == null || singletons.isEmpty())) {
+                log.warn("No resource classes found, do not start JAX-RS application");
+                return;
+            }
 
-        final Server server = serverFactory.create();
-        if (log.isDebugEnabled()) {
-            log.debug("Starting JAX-RS application, service.id = " + applicationId);
-        }
-        server.start();
+            final RuntimeDelegate delegate = RuntimeDelegate.getInstance();
+            final JAXRSServerFactoryBean serverFactory = delegate.createEndpoint(application, JAXRSServerFactoryBean.class);
 
-        servers.put(applicationId, server);
+            final Map<String, Object> properties = application.getProperties();
+            final String applicationPath = properties != null ? (String) properties.get(APPLICATION_PATH) : null;
+            if (applicationPath != null) {
+                serverFactory.setAddress(applicationPath);
+            } else if (!application.getClass().isAnnotationPresent(ApplicationPath.class)) {
+                log.warn("No @ApplicationPath found on component, service.id = " + applicationId);
+            }
+            final CxfContext cxfContext;
+            if (properties != null && properties.containsKey(BasicApplication.CONTEXT_PROPERTY_KEY)) {
+                cxfContext = (CxfContext) properties.get(BasicApplication.CONTEXT_PROPERTY_KEY);
+            } else if (properties != null && properties.containsKey(CONTEXT_KEY)) {
+                final Object ctx = properties.get(CONTEXT_KEY);
+                cxfContext = (ctx instanceof CxfContext) ? (CxfContext) ctx : null;
+                if (ctx != null) {
+                    cxfContext.getBus().setExtension(new BundleDelegatingClassLoader(applicationBundle), ClassLoader.class);
+                } else {
+                    log.error("CXF Context is null, but set");
+                }
+            } else {
+                cxfContext = null;
+            }
+            if (cxfContext != null) {
+                serverFactory.setBus(cxfContext.getBus());
+
+                if (log.isTraceEnabled()) {
+                    log.trace("IN interceptors: {}", cxfContext.getInInterceptors());
+                    log.trace("OUT interceptors: {}", cxfContext.getOutInterceptors());
+                    log.trace("FAULT interceptors: {}", cxfContext.getFaultInterceptors());
+                }
+
+                serverFactory.setInInterceptors(cxfContext.getInInterceptors());
+                serverFactory.setOutInterceptors(cxfContext.getOutInterceptors());
+                serverFactory.setOutFaultInterceptors(cxfContext.getFaultInterceptors());
+            }
+
+            final List<Object> _providers;
+            if (providers == null) {
+                _providers = applicationProviders.containsKey(applicationId) ? applicationProviders.get(applicationId) : providers;
+            } else {
+                _providers = providers;
+            }
+            serverFactory.setProviders(_providers);
+            applicationProviders.put(applicationId, _providers);
+
+            final Server server = serverFactory.create();
+            if (log.isDebugEnabled()) {
+                log.debug("Starting JAX-RS application, service.id = " + applicationId);
+            }
+            server.start();
+
+            servers.put(applicationId, server);
+        }
     }
 
     @Override
-    public synchronized void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
+    public void updateApplicationResources(final Long applicationId, final Application application, final List<Object> providers) {
         log.trace("UPDATE JAX-RS application resources: " + applicationId);
         //applications.put(applicationId, application);
         restartApplications(Collections.singleton(applicationId), Collections.singletonMap(applicationId, providers));
     }
 
     @Override
-    public synchronized Application stopApplication(final Long applicationId) {
-        log.trace("STOP JAX-RS application: " + applicationId);
-        final Server server = servers.remove(applicationId);
-        if (server != null) {
-            if (log.isDebugEnabled()) {
-                log.debug("Stopping JAX-RS application, service.id = " + applicationId);
+    public Application stopApplication(final Long applicationId) {
+        synchronized (lockObject) {
+            log.trace("STOP JAX-RS application: " + applicationId);
+            final Server server = servers.remove(applicationId);
+            if (server != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Stopping JAX-RS application, service.id = " + applicationId);
+                }
+                server.stop();
+                server.destroy();
             }
-            server.stop();
-            server.destroy();
+            applicationBundles.remove(applicationId);
+            return applications.remove(applicationId);
         }
-        applicationBundles.remove(applicationId);
-        return applications.remove(applicationId);
     }
 
     @Override
     public void restartApplications(final Collection<Long> applicationIds, final Map<Long, List<Object>> providers) {
-        applicationIds.forEach(applicationId -> {
+        for (Long applicationId : applicationIds) {
             log.trace("RESTART JAX-RS application: " + applicationId);
             final Application application = stopApplication(applicationId);
             startApplication(applicationId, application, applicationBundles.get(applicationId), providers != null ? providers.get(applicationId) : null);
-        });
+        }
     }
 
     @Override
@@ -270,6 +277,8 @@ public class CxfServerManager implements ServerManager {
     @Override
     public void shutdown() {
         final Set<Long> applicationIds = new TreeSet<>(servers.keySet());
-        applicationIds.forEach(this::stopApplication);
+        for (Long applicationId : applicationIds) {
+            stopApplication(applicationId);
+        }
     }
 }

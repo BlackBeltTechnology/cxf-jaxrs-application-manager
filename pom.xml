@@ -73,6 +73,7 @@
 
         <lombok.version>1.18.24</lombok.version>
         <slf4j.version>1.7.25</slf4j.version>
+        <logback-version>1.5.12</logback-version>
 
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
         <gitflow-maven-plugin.version>1.9.0</gitflow-maven-plugin.version>
@@ -80,7 +81,7 @@
         <jackson.version>2.15.2</jackson.version>
         <cxf.version>3.5.6</cxf.version>
 
-        <surefire-version>3.0.0</surefire-version>
+        <surefire-version>3.5.1</surefire-version>
         <!--suppress UnresolvedMavenProperty -->
         <logback-test-config>${maven.multiModuleProjectDirectory}/logback-test.xml</logback-test-config>
 
@@ -90,7 +91,7 @@
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.language>java</sonar.language>
         <sonar.java.source>${java.version}</sonar.java.source>
-        <jacoco.version>0.8.8</jacoco.version>
+        <jacoco.version>0.8.12</jacoco.version>
 
         <!-- Disable javadoc errors -->
         <doclint>none</doclint>
@@ -318,7 +319,7 @@
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
-                <version>1.2.11</version>
+                <version>${logback-version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

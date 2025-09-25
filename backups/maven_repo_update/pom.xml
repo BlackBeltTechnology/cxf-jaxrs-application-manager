@@ -1,5 +1,6 @@
-<?xml version='1.0' encoding='utf-8'?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>cxf-jaxrs-application-manager</artifactId>
@@ -498,14 +499,14 @@
             <id>release-judong</id>
             <distributionManagement>
                 <snapshotRepository>
-                    <id>judong-distribution</id>
+                    <id>judong-nexus-distribution</id>
                     <!--suppress UnresolvedMavenProperty -->
-                    <url>https://repository.judo.technology/repository/maven-judong-upstream/</url>
+                    <url>https://nexus.judo.technology/repository/maven-judong-snapshots/</url>
                 </snapshotRepository>
                 <repository>
-                    <id>judong-distribution</id>
+                    <id>judong-nexus-distribution</id>
                     <!--suppress UnresolvedMavenProperty -->
-                    <url>https://repository.judo.technology/repository/maven-judong-upstream/</url>
+                    <url>https://nexus.judo.technology/repository/maven-judong-snapshots/</url>
                 </repository>
             </distributionManagement>
         </profile>
@@ -626,7 +627,7 @@
                                         <toc>left</toc>
                                         <icons>font</icons>
                                         <sectanchors>true</sectanchors>
-                                        <idprefix/>
+                                        <idprefix />
                                         <idseparator>-</idseparator>
                                     </attributes>
                                 </configuration>
@@ -708,4 +709,4 @@
 
     </profiles>
 
-<repositories><repository><id>judong</id><url>https://repository.judo.technology/repository/maven-judong/</url><releases><enabled>true</enabled></releases><snapshots><enabled>false</enabled></snapshots></repository></repositories></project>
+</project>

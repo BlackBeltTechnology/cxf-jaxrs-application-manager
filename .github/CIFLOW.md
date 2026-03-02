@@ -81,12 +81,12 @@ gitgraph
     merge "support/JNG-5" id: "merge-support-5"
     commit id: "rel-1.0b2-b"
 
-    checkout main
+    checkout master
     merge "release/1.0-beta2" id: "release-1.0b2"
 
     branch "hotfix/JNG-6" order: 9
     commit id: "hotfix-6a"
-    checkout main
+    checkout master
     merge "hotfix/JNG-6" id: "merge-hotfix-6"
 
     checkout develop
@@ -95,7 +95,7 @@ gitgraph
     branch "release/1.1-beta1" order: 10
     commit id: "rel-1.1b1-a"
     commit id: "rel-1.1b1-b"
-    checkout main
+    checkout master
     merge "release/1.1-beta1" id: "release-1.1b1"
 
     checkout develop

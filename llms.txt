@@ -46,6 +46,12 @@ Key facts:
 
 - [examples/echo/Echo.java](examples/echo/Echo.java): Sample JAX-RS resource with OSGi configuration files
 
+## Used by
+
+- [judo-platform](../judo-platform): runtime/judo-platform
+- [judo-services](../judo-services): runtime/judo-services
+- [judo-psm-generator-jaxrs](../../template/judo-psm-generator-jaxrs): template/judo-psm-generator-jaxrs
+
 ## Optional
 
 - [pom.xml](pom.xml): Maven build configuration, dependency management, and profile definitions

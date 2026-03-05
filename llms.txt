@@ -48,9 +48,9 @@ Key facts:
 
 ## Used by
 
-- [judo-platform](../judo-platform): runtime/judo-platform
-- [judo-services](../judo-services): runtime/judo-services
-- [judo-psm-generator-jaxrs](../../template/judo-psm-generator-jaxrs): template/judo-psm-generator-jaxrs
+- [judo-platform](../judo-platform): Model-driven OSGi runtime platform with REST APIs and Karaf deployment
+- [judo-services](../judo-services): OSGi runtime services enabling multiple data models in a single Karaf container
+- [judo-psm-generator-jaxrs](../../template/judo-psm-generator-jaxrs): Generates JAX-RS interfaces, DTOs, and service implementations from PSM
 
 ## Optional
 

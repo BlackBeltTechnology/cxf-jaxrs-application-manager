@@ -1,0 +1,60 @@
+# CXF JAX-RS Application Manager
+
+> Manages the lifecycle of JAX-RS applications in OSGi environments using Apache CXF, with dynamic service discovery, provider management, and built-in JSON/interceptor support.
+
+Key facts:
+- Java 17, single-module Maven project (OSGi bundle), built with Maven Wrapper (`./mvnw`)
+- Apache CXF 3.5.6 as JAX-RS implementation, OSGi Declarative Services 1.3.0 for component management
+- Jackson 2.17.2 for JSON marshalling (optional dependencies), Lombok 1.18.34 for code generation
+- Dynamically discovers `javax.ws.rs.core.Application` services via OSGi ServiceTrackers
+- Provider assignment via OSGi LDAP filters (global, shared, application-specific)
+- License: Apache License 2.0
+
+## Docs
+
+- [README.md](README.md): Project overview, architecture diagrams, configuration reference, and quick start guide
+- [AGENTS.md](AGENTS.md): Developer guide with build commands, directory structure, technology stack, and coding conventions
+- [CONTRIBUTING.md](CONTRIBUTING.md): Development setup, submission guidelines, and build commands
+- [CHANGELOG.md](CHANGELOG.md): Version history and release notes
+- [.github/CIFLOW.md](.github/CIFLOW.md): CI/CD workflow documentation, branch strategy, and versioning rules
+
+## Core Package — hu.blackbelt.jaxrs
+
+- [src/main/java/hu/blackbelt/jaxrs/ApplicationManager.java](src/main/java/hu/blackbelt/jaxrs/ApplicationManager.java): Central coordinator that discovers JAX-RS Application services and manages their lifecycle
+- [src/main/java/hu/blackbelt/jaxrs/ApplicationStore.java](src/main/java/hu/blackbelt/jaxrs/ApplicationStore.java): Tracks individual application state, resolves required providers before starting
+- [src/main/java/hu/blackbelt/jaxrs/SharedProviderStore.java](src/main/java/hu/blackbelt/jaxrs/SharedProviderStore.java): Manages global and shared JAX-RS providers with LDAP filter-based assignment
+- [src/main/java/hu/blackbelt/jaxrs/ServerManager.java](src/main/java/hu/blackbelt/jaxrs/ServerManager.java): Interface for server operations (start, stop, update applications)
+- [src/main/java/hu/blackbelt/jaxrs/CxfServerManager.java](src/main/java/hu/blackbelt/jaxrs/CxfServerManager.java): CXF-specific ServerManager implementation with bus and endpoint management
+- [src/main/java/hu/blackbelt/jaxrs/CxfContext.java](src/main/java/hu/blackbelt/jaxrs/CxfContext.java): DS component for custom CXF Bus configuration and interceptor setup
+
+## Application Package — hu.blackbelt.jaxrs.application
+
+- [src/main/java/hu/blackbelt/jaxrs/application/BasicApplication.java](src/main/java/hu/blackbelt/jaxrs/application/BasicApplication.java): Configuration-driven JAX-RS Application DS component that tracks resources via OSGi filters
+
+## Providers Package — hu.blackbelt.jaxrs.providers
+
+- [src/main/java/hu/blackbelt/jaxrs/providers/JacksonProvider.java](src/main/java/hu/blackbelt/jaxrs/providers/JacksonProvider.java): JAX-RS provider for Jackson JSON marshalling
+- [src/main/java/hu/blackbelt/jaxrs/providers/ExtendedObjectMapperProvider.java](src/main/java/hu/blackbelt/jaxrs/providers/ExtendedObjectMapperProvider.java): Pre-configured Jackson ObjectMapper with JSR310, JDK8, and JAXB support
+- [src/main/java/hu/blackbelt/jaxrs/providers/ISO8601DateParamHandler.java](src/main/java/hu/blackbelt/jaxrs/providers/ISO8601DateParamHandler.java): JAX-RS parameter converter for ISO 8601 date parsing
+
+## Interceptors Package — hu.blackbelt.jaxrs.interceptors
+
+- [src/main/java/hu/blackbelt/jaxrs/interceptors/ExchangeIdDecorator.java](src/main/java/hu/blackbelt/jaxrs/interceptors/ExchangeIdDecorator.java): CXF IN interceptor that sets MDC exchange ID for request tracing
+- [src/main/java/hu/blackbelt/jaxrs/interceptors/ExchangeIdResponseWriter.java](src/main/java/hu/blackbelt/jaxrs/interceptors/ExchangeIdResponseWriter.java): CXF OUT interceptor that writes X-Exchange-Id response header
+
+## Examples
+
+- [examples/echo/Echo.java](examples/echo/Echo.java): Sample JAX-RS resource with OSGi configuration files
+
+## Used by
+
+- [judo-platform](../judo-platform): Model-driven OSGi runtime platform with REST APIs and Karaf deployment
+- [judo-services](../judo-services): OSGi runtime services enabling multiple data models in a single Karaf container
+- [judo-psm-generator-jaxrs](../../template/judo-psm-generator-jaxrs): Generates JAX-RS interfaces, DTOs, and service implementations from PSM
+
+## Optional
+
+- [pom.xml](pom.xml): Maven build configuration, dependency management, and profile definitions
+- [.github/workflows/build.yml](.github/workflows/build.yml): CI build pipeline
+- [.github/workflows/release.yml](.github/workflows/release.yml): Release workflow
+- [LICENSE.txt](LICENSE.txt): Apache License 2.0 text
